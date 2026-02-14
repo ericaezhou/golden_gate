@@ -115,6 +115,63 @@ Uses `ast` module to extract:
 - Import chains, call graphs
 - Comments referencing people
 
+# Visualization version
+
+```mermaid
+flowchart TD
+
+  A[Raw Data] -->|Step 1 Parsing| B[Structured JSON]
+
+  B --> C[Select k files]
+  C -->|Step 2 Individual file LLM analysis| D[Deep dives over k files]
+
+  %% Deep dives branch
+  D --> Q1[Questions from each file]
+  D --> E[Concatenate deep dive outputs]
+  D --> K[Onboarding package]
+
+  %% Global reasoning path
+  E -->|Step 3 Global LLM summarization| F[Global summary]
+  F --> Q2[Questions from global view]
+
+  %% Merge question sources
+  Q1 --> M[Unified question set]
+  Q2 -->|add new Qs and answering old Qs| M
+
+  %% Interview
+  M --> I[AI interview]
+  I --> J[Interview summary including extracted knowledge]
+
+  %% Enrich onboarding package
+  J --> K
+
+  %% Final outputs
+  K --> L[Overview of previous work]
+  K --> N[QA agent for new employee]
+
+
+  %% ===== Styling =====
+
+  %% Backend (blue)
+  classDef backend fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1;
+  class A,B,C backend;
+
+  %% Deep dive reasoning (purple)
+  classDef reasoning fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,color:#4A148C;
+  class D,E,F reasoning;
+
+  %% Question generation (orange)
+  classDef questions fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#E65100;
+  class Q1,Q2,M questions;
+
+  %% Interview (red)
+  classDef interview fill:#FDECEA,stroke:#E53935,stroke-width:2px,color:#B71C1C;
+  class I,J interview;
+
+  %% Onboarding outputs (green)
+  classDef onboarding fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20;
+  class K,L,N onboarding;
+```
 ---
 
 ## Component 2: LangGraph Analysis Agent (`backend/agent/`)
@@ -158,17 +215,6 @@ class WorkingMemory(TypedDict):
     open_questions: list[str]        # what the agent still doesn't understand
     assumptions: list[str]           # implicit assumptions found in files
     historical_parallels: list[str]  # matches from past deals
-
-class KnowledgeGap(TypedDict):
-    id: str
-    title: str
-    description: str
-    severity: Literal['high', 'medium', 'low']
-    category: Literal['process', 'people', 'systems', 'financial', 'governance']
-    finding_ids: list[str]           # contributing findings
-    question: str                    # primary interview question
-    follow_up_probes: list[str]      # deeper questions if answer is vague
-    evidence_summary: str            # what we found across files
 
 class AnalysisState(TypedDict):
     # Input
