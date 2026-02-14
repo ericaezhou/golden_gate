@@ -1,0 +1,77 @@
+{
+  "metadata": {
+    "filename": "Q3_Loss_Forecast.xlsx",
+    "author": "Alice Chen",
+    "lastModified": "2024-09-20",
+    "description": "Q3 2024 Credit Loss Forecast with Manual Adjustments"
+  },
+  "sheets": {
+    "Summary": {
+      "headers": ["Segment", "Model Output", "Adjustment", "Final Forecast", "Notes"],
+      "data": [
+        ["Prime", "2.3%", "0%", "2.3%", "No adjustment needed"],
+        ["Near-prime", "5.1%", "+1.2%", "6.3%", ""],
+        ["Subprime", "12.4%", "+3.1%", "15.5%", ""],
+        ["Deep subprime", "22.1%", "+4.5%", "26.6%", ""]
+      ],
+      "comments": {
+        "C3": "Adjustment based on early delinquency signals",
+        "C4": "Adjustment based on early delinquency signals",
+        "C5": "Adjustment based on early delinquency signals"
+      }
+    },
+    "Cohort_Analysis": {
+      "headers": ["Cohort", "Vintage", "Expected Loss", "Actual Loss", "Variance", "Status"],
+      "data": [
+        ["Q1-24", "January", "4.2%", "5.8%", "+38%", "REVIEW"],
+        ["Q1-24", "February", "4.1%", "5.4%", "+32%", "REVIEW"],
+        ["Q1-24", "March", "4.0%", "4.3%", "+8%", "OK"],
+        ["Q4-23", "October", "3.8%", "3.9%", "+3%", "OK"],
+        ["Q4-23", "November", "3.9%", "4.0%", "+3%", "OK"],
+        ["Q4-23", "December", "4.0%", "4.2%", "+5%", "OK"]
+      ]
+    },
+    "Adjustment_Log": {
+      "headers": ["Date", "Segment", "Amount", "Reason", "Approved By"],
+      "data": [
+        ["2024-09-15", "Near-prime", "+1.2%", "Q1 cohort underperformance", ""],
+        ["2024-09-15", "Subprime", "+3.1%", "Elevated 30-day delinquencies", ""],
+        ["2024-09-15", "Deep subprime", "+4.5%", "Macro concerns + cohort data", ""]
+      ],
+      "notes": "Approval column often left blank - need to fix process"
+    },
+    "Model_Inputs": {
+      "headers": ["Parameter", "Value", "Source", "Last Updated"],
+      "data": [
+        ["Unemployment Rate", "4.1%", "BLS", "2024-09-01"],
+        ["Fed Funds Rate", "5.25%", "Federal Reserve", "2024-09-18"],
+        ["Consumer Sentiment", "67.8", "U of Michigan", "2024-09-15"],
+        ["30-Day Delinquency (Subprime)", "8.2%", "Internal", "2024-09-10"],
+        ["30-Day Delinquency (Deep Sub)", "14.1%", "Internal", "2024-09-10"]
+      ]
+    }
+  },
+  "formulas": {
+    "D2": "=B2+C2",
+    "D3": "=B3+C3",
+    "D4": "=B4+C4",
+    "D5": "=B5+C5"
+  },
+  "issues_detected": [
+    {
+      "location": "Summary!C3:C5",
+      "issue": "Manual adjustments with no documented rationale in cells",
+      "severity": "high"
+    },
+    {
+      "location": "Adjustment_Log!E2:E4",
+      "issue": "Approval column is empty - governance gap",
+      "severity": "medium"
+    },
+    {
+      "location": "Cohort_Analysis",
+      "issue": "High variance cohorts (>30%) but unclear how this informs adjustments",
+      "severity": "medium"
+    }
+  ]
+}

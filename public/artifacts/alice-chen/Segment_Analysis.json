@@ -1,0 +1,75 @@
+{
+  "metadata": {
+    "filename": "Segment_Analysis.xlsx",
+    "author": "Alice Chen",
+    "lastModified": "2024-09-18",
+    "description": "Cohort Performance Analysis by Segment"
+  },
+  "sheets": {
+    "Cohort_Performance": {
+      "headers": ["Cohort", "Vintage", "Segment", "Expected Loss Rate", "Actual Loss Rate", "Variance", "Status"],
+      "data": [
+        ["Q1-24", "Jan", "Near-prime", "4.2%", "5.8%", "+38%", "REVIEW"],
+        ["Q1-24", "Feb", "Near-prime", "4.1%", "5.4%", "+32%", "REVIEW"],
+        ["Q1-24", "Mar", "Near-prime", "4.0%", "4.3%", "+8%", "OK"],
+        ["Q1-24", "Jan", "Subprime", "10.5%", "13.2%", "+26%", "REVIEW"],
+        ["Q1-24", "Feb", "Subprime", "10.8%", "12.9%", "+19%", "MONITOR"],
+        ["Q1-24", "Mar", "Subprime", "11.0%", "11.8%", "+7%", "OK"],
+        ["Q1-24", "Jan", "Deep Sub", "20.1%", "26.8%", "+33%", "REVIEW"],
+        ["Q1-24", "Feb", "Deep Sub", "20.5%", "25.2%", "+23%", "REVIEW"],
+        ["Q1-24", "Mar", "Deep Sub", "21.0%", "22.4%", "+7%", "OK"]
+      ]
+    },
+    "30_Day_Delinquency": {
+      "headers": ["Month", "Prime", "Near-prime", "Subprime", "Deep Subprime"],
+      "data": [
+        ["Jul-24", "2.1%", "5.2%", "11.8%", "18.2%"],
+        ["Aug-24", "2.2%", "5.8%", "12.4%", "19.1%"],
+        ["Sep-24", "2.1%", "6.1%", "13.2%", "20.8%"]
+      ],
+      "trends": {
+        "Prime": "stable",
+        "Near-prime": "increasing",
+        "Subprime": "increasing",
+        "Deep Subprime": "increasing"
+      }
+    },
+    "Overlay_Tracking": {
+      "headers": ["Segment", "Overlay Applied", "Start Date", "Trigger", "Last Review", "Removal Criteria Met?"],
+      "data": [
+        ["Near-prime", "+1.2%", "2024-06-15", "Q1 cohort variance >25%", "2024-09-15", "No"],
+        ["Subprime", "+3.1%", "2024-06-15", "Delinquency trend + cohort", "2024-09-15", "No"],
+        ["Deep Subprime", "+4.5%", "2024-03-01", "New product launch buffer", "2024-09-15", "Unclear"]
+      ],
+      "notes": "Deep subprime overlay has been in place for 6+ months - should we review removal?"
+    },
+    "Decision_Matrix": {
+      "description": "When to apply overlays - DRAFT, needs documentation",
+      "headers": ["Condition", "Threshold", "Action", "Notes"],
+      "data": [
+        ["Cohort variance", ">25% for 2 months", "Consider overlay", "Alice's rule"],
+        ["30-day delinquency spike", ">15% MoM increase", "Consider overlay", ""],
+        ["Model staleness", ">30 days", "Flag for review", ""],
+        ["Macro shift", "See criteria below", "Depends", "Ask Alice"]
+      ],
+      "macro_criteria": "Not formally documented - Alice uses unemployment, Fed rate, consumer sentiment"
+    }
+  },
+  "issues_detected": [
+    {
+      "location": "Overlay_Tracking",
+      "issue": "Deep subprime overlay in place 6+ months with unclear removal criteria",
+      "severity": "medium"
+    },
+    {
+      "location": "Decision_Matrix",
+      "issue": "Decision criteria marked as 'Ask Alice' - tribal knowledge",
+      "severity": "high"
+    },
+    {
+      "location": "30_Day_Delinquency",
+      "issue": "Increasing trend across segments but no documented response plan",
+      "severity": "medium"
+    }
+  ]
+}
