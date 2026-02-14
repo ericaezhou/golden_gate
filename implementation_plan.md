@@ -260,45 +260,8 @@ Builds the adaptive interview tree (see Component 4).
 
 ---
 
-## Component 3: Knowledge Graph (`backend/graph/knowledge_graph.py`)
 
-Plain Python dict structure, exported as JSON for react-force-graph.
-
-```python
-# Node types (color-coded in frontend)
-# file (blue), person (orange), process (green), risk (red), system (purple), gap (red pulsing)
-
-# Edge types
-# references, depends_on, maintained_by, undocumented, contradicts, historical_parallel
-
-# Example nodes for XCorp scenario:
-nodes = [
-    {"id": "file-valuation", "type": "file", "label": "XCorp Valuation", "group": "file"},
-    {"id": "file-risk-log", "type": "file", "label": "Risk Log", "group": "file"},
-    {"id": "person-cs-leads", "type": "person", "label": "CS Leads", "group": "person"},
-    {"id": "person-finance-analyst", "type": "person", "label": "Finance Sr. Analyst", "group": "person"},
-    {"id": "process-manual-recon", "type": "process", "label": "Manual Revenue Reconciliation", "group": "process"},
-    {"id": "gap-churn-root-cause", "type": "gap", "label": "Churn Root Cause Unknown", "group": "gap"},
-    {"id": "system-erp", "type": "system", "label": "ERP (35% incomplete)", "group": "system"},
-]
-
-edges = [
-    {"source": "file-valuation", "target": "gap-churn-root-cause", "type": "references"},
-    {"source": "gap-churn-root-cause", "target": "person-cs-leads", "type": "maintained_by"},
-    {"source": "file-risk-log", "target": "gap-churn-root-cause", "type": "references"},
-    {"source": "process-manual-recon", "target": "person-finance-analyst", "type": "maintained_by"},
-]
-```
-
-Built incrementally:
-- `parse_files` → adds file nodes
-- `deep_analyze` → adds entity nodes (people, processes, systems) and within-file edges
-- `cross_reference` → adds cross-file edges and gap nodes (the most valuable part)
-- `generate_gaps` → finalizes gap nodes with severity metadata
-
----
-
-## Component 4: Adaptive Interview Engine (`backend/interview/interview_engine.py`)
+## Component 3: Adaptive Interview Engine (`backend/interview/interview_engine.py`)
 
 NOT a static question list. A tree that branches based on answer quality.
 
@@ -345,18 +308,10 @@ backend/
 │   ├── graph.py                     # StateGraph definition + edges
 │   ├── nodes.py                     # All node functions
 │   └── prompts.py                   # System prompts per phase
-├── graph/
-│   ├── __init__.py
-│   └── knowledge_graph.py           # Graph builder, JSON export
 ├── interview/
 │   ├── __init__.py
 │   └── interview_engine.py          # Adaptive interview tree
 └── models.py                        # Pydantic shared models
-```
-
-```
-# New frontend files
-src/components/KnowledgeGraph.tsx     # react-force-graph visualization
 ```
 
 ```
@@ -407,20 +362,14 @@ react-force-graph
 - Wire all nodes into LangGraph StateGraph with conditional edges
 - **Test**: Full agent run against XCorp files. Verify it finds the 4 cross-reference clusters listed above.
 
-### Step 4: Knowledge graph + gap generation
-- Implement knowledge graph builder (incremental during analysis)
-- Implement `generate_gaps` node
-- Implement interview tree builder
-- Expose via FastAPI endpoints: `/analyze`, `/graph`, `/interview/next`
-- **Test**: Hit endpoints, verify JSON output
 
-### Step 5: Frontend integration
+### Step 4: Frontend integration
 - Add react-force-graph component for knowledge graph visualization
 - Wire `/api/analyze` to proxy to Python service
 - Add SSE streaming for real-time analysis progress on screening page
 - Wire conversation page to use adaptive interview engine
 
-### Step 6: Polish + demo prep
+### Step 5: Polish + demo prep
 - End-to-end test of full flow
 - `DEMO_MODE` fallback to mock data if agent fails
 - Performance tuning (target: <60s for full analysis)
@@ -450,11 +399,10 @@ Primary: OpenAI GPT-5.3 ($2500 credit). Fallback: Claude Sonnet 4 (already integ
 
 1. **Parser test**: Each parser extracts meaningful structured data from its file type
 2. **Agent test**: Full LangGraph run finds the 4 cross-reference clusters from the XCorp files
-3. **Graph test**: Knowledge graph JSON renders correctly in react-force-graph
-4. **Interview test**: Adaptive branching works — vague answer triggers probe, specific answer moves forward
-5. **Performance**: Full analysis completes in <60 seconds
-6. **Fallback**: `DEMO_MODE=mock` returns hardcoded data so demo always works
-7. **Integration**: Frontend screening page shows real-time progress, conversation page uses real questions
+3. **Interview test**: Adaptive branching works — vague answer triggers probe, specific answer moves forward
+4. **Performance**: Full analysis completes in <60 seconds
+5. **Fallback**: `DEMO_MODE=mock` returns hardcoded data so demo always works
+6. **Integration**: Frontend screening page shows real-time progress, conversation page uses real questions
 
 ---
 
@@ -462,8 +410,6 @@ Primary: OpenAI GPT-5.3 ($2500 credit). Fallback: Claude Sonnet 4 (already integ
 
 1. **"How did it know to ask that?"** — Agent finds that churn spike (Valuation) + "only known by CS leads" (Risk Log) + unresolved question (Meeting Notes) + YCorp failure pattern (Past Deals) are all ONE cluster, and asks: "The 12% churn spike appears in your valuation, your risk log attributes root cause knowledge solely to CS leads, and a previous deal (YCorp) failed from similar undiagnosed churn. Can you walk us through what your CS team has identified as the actual driver?"
 
-2. **Knowledge graph on screen** — Interactive force-directed graph. Files as blue nodes. Red pulsing "gap" nodes in the center. Orange person nodes ("CS Leads", "Finance Analyst") connected to multiple gaps — showing single points of failure visually.
+2. **Document version diff** — Agent notices DealMemo v2 ADDED "knowledge concentration risk" that wasn't in v1, and asks: "Between v1 and v2 of the deal memo, your team added operational fragility as a new concern. What specific events between those drafts triggered this escalation?"
 
-3. **Document version diff** — Agent notices DealMemo v2 ADDED "knowledge concentration risk" that wasn't in v1, and asks: "Between v1 and v2 of the deal memo, your team added operational fragility as a new concern. What specific events between those drafts triggered this escalation?"
-
-4. **Contradiction detection** — Valuation says "Integration Readiness: 6/10" but Ops Workflows describes multiple undocumented exception paths. Agent asks: "Your readiness score assumes standardized onboarding, but your ops documentation reveals at least 3 manual exception workflows. Has the readiness score been adjusted for these?"
+3. **Contradiction detection** — Valuation says "Integration Readiness: 6/10" but Ops Workflows describes multiple undocumented exception paths. Agent asks: "Your readiness score assumes standardized onboarding, but your ops documentation reveals at least 3 manual exception workflows. Has the readiness score been adjusted for these?"
