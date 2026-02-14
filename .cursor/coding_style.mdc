@@ -1,0 +1,32 @@
+---
+description: cursor coding style
+globs:
+alwaysApply: true
+---
+
+I know you are an AI agent
+
+# before coding
+- Always refer to the docs folder for general understanding of the project, codebase, current progress, etc
+
+# During coding
+- You are not allowed to write any code with more than 4 recursive blocks (do not do code block inside a block inside a block, 4 layer maximum)
+- Any function should not exceed 65 lines
+
+# after coding
+- Remember to update the meta data in docs when there is a meta level structure update needed: for example when there is a style changing needed, direction change, etc
+- You have to write unit test after coding and make sure that the unit test is passed
+
+# System
+- I am using MacOS with M4 chip
+- I will be mainly using jupyter notebook/lab
+
+# Python code
+- use UV to manage the project
+
+# Keep progress recorded
+- You after I finished a practice or made some progress, learned some new stuff, you should note it down as new information for my background
+- When there is a problem that I get confused or I didn't understand that well, you should also record those and make me review from time to time
+
+# Always do clearifications
+- You should ask questions/clearifications if any vague point was made

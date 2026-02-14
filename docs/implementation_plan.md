@@ -122,7 +122,7 @@ flowchart TD
 
   A[Raw Data] -->|Step 1 Parsing| B[Structured JSON]
 
-  B --> C[Select k files]
+  B --> C[k files]
   C -->|Step 2 Individual file LLM analysis| D[Deep dives over k files]
 
   %% Deep dives branch
