@@ -1,0 +1,26 @@
+Integration Planning Meeting Notes
+
+Date: March 12
+Attendees: Corp Dev, Finance, Ops Leadership, Product Integration Team
+
+Key Issues Identified:
+- ERP migration incomplete; legacy billing system still used for 35% of customers
+- Customer onboarding timelines inconsistent across regions
+- Support ticket backlog concentrated in enterprise accounts
+
+Operational Observations:
+- Ops team relies heavily on undocumented data correction workflows
+- Finance team runs monthly manual revenue reconciliation before board reporting
+- Customer success managers track contract exceptions in personal spreadsheets
+
+Action Items:
+1. Identify all manual workflows used in onboarding and billing
+2. Document enterprise customer-specific contract obligations
+3. Validate ERP migration data mapping completeness
+4. Identify single points of failure in ops and finance processes
+5. Build integration contingency plan if key ops employees leave during transition
+
+Unresolved Questions:
+- Which manual workflows are business critical vs convenience shortcuts?
+- How many customers rely on custom contract terms not tracked in systems?
+- Are revenue adjustments predictable or ad hoc each month?
