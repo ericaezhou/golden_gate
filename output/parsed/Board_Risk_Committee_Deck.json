@@ -1,0 +1,28 @@
+{
+  "file_id": "Board_Risk_Committee_Deck.pptx",
+  "file_path": "/Users/magnus/git/golden_gate/data/Board_Risk_Committee_Deck.pptx",
+  "file_type": "pptx",
+  "metadata": {
+    "slide_count": 3,
+    "slides": [
+      {
+        "title": "Q3 2026Q1 Portfolio Risk Forecast",
+        "has_notes": false,
+        "shape_count": 2
+      },
+      {
+        "title": "Executive Summary (Draft)",
+        "has_notes": false,
+        "shape_count": 2
+      },
+      {
+        "title": "Key Assumptions (Legacy)",
+        "has_notes": false,
+        "shape_count": 2
+      }
+    ]
+  },
+  "content": "## Slide 1: Q3 2026Q1 Portfolio Risk Forecast\n\nQ3 2026Q1 Portfolio Risk Forecast\n\nPrepared by Alice Chen \u2022 Board Risk Committee\n\n\n## Slide 2: Executive Summary (Draft)\n\nProjected 12-month default rate: 5.8%\nCET1 ratio (base): 12.4%\nCET1 ratio (stress): 12.1%\nRecommendation: No escalation required\n\n\n## Slide 3: Key Assumptions (Legacy)\n\nForecast window: 4 quarters (legacy shortcut)\nMacro overlay: not applied\nStress PD multiplier: 1.10\nDiscount rate: 10.5%",
+  "references": [],
+  "warnings": []
+}

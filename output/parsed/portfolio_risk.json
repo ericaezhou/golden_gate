@@ -1,0 +1,200 @@
+{
+  "file_id": "portfolio_risk.db",
+  "file_path": "/Users/magnus/git/golden_gate/data/portfolio_risk.db",
+  "file_type": "db",
+  "metadata": {
+    "tables": [
+      {
+        "name": "capital_position",
+        "row_count": 12,
+        "columns": [
+          {
+            "name": "quarter",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": true
+          },
+          {
+            "name": "cet1_ratio",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "cet1_capital",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "rwa",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          }
+        ]
+      },
+      {
+        "name": "historical_defaults",
+        "row_count": 12,
+        "columns": [
+          {
+            "name": "quarter",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": true
+          },
+          {
+            "name": "default_rate",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          }
+        ]
+      },
+      {
+        "name": "loan_cohorts",
+        "row_count": 3,
+        "columns": [
+          {
+            "name": "cohort",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": true
+          },
+          {
+            "name": "exposure_ead",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "lgd",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "avg_fico",
+            "type": "INTEGER",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "avg_dti",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "avg_ltv",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          }
+        ]
+      },
+      {
+        "name": "macro_quarterly",
+        "row_count": 12,
+        "columns": [
+          {
+            "name": "quarter",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": true
+          },
+          {
+            "name": "gdp_growth",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "unemployment_rate",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "fed_funds_rate",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          }
+        ]
+      },
+      {
+        "name": "policy_snapshot",
+        "row_count": 1,
+        "columns": [
+          {
+            "name": "as_of_quarter",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": true
+          },
+          {
+            "name": "forecast_window_quarters",
+            "type": "INTEGER",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "gdp_trigger_threshold",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "macro_overlay_multiplier",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "stress_pd_multiplier",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "min_cet1_ratio",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "escalation_default_threshold",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "approved_discount_rate",
+            "type": "REAL",
+            "notnull": false,
+            "pk": false
+          },
+          {
+            "name": "memo_template_version",
+            "type": "TEXT",
+            "notnull": false,
+            "pk": false
+          }
+        ]
+      }
+    ],
+    "all_tables": [
+      "capital_position",
+      "historical_defaults",
+      "loan_cohorts",
+      "macro_quarterly",
+      "policy_snapshot"
+    ],
+    "table_count": 5
+  },
+  "content": "# SQLite Database: portfolio_risk.db\n\n**Tables:** 5\n\n## capital_position (12 rows)\n\n| Column | Type | PK |\n| --- | --- | --- |\n| quarter | TEXT | Y |\n| cet1_ratio | REAL |  |\n| cet1_capital | REAL |  |\n| rwa | REAL |  |\n\n**Sample (5 rows):**\n\n| quarter | cet1_ratio | cet1_capital | rwa |\n| --- | --- | --- | --- |\n| 2023Q1 | 0.1326 | 2739920234.78 | 21001814552.42 |\n| 2023Q2 | 0.131 | 2737724742.39 | 21135325480.55 |\n| 2023Q3 | 0.1295 | 2739797715.29 | 21042078725.23 |\n| 2023Q4 | 0.1298 | 2758484667.41 | 21117733185.81 |\n| 2024Q1 | 0.1309 | 2749940110.21 | 21232390450.33 |\n\n## historical_defaults (12 rows)\n\n| Column | Type | PK |\n| --- | --- | --- |\n| quarter | TEXT | Y |\n| default_rate | REAL |  |\n\n**Sample (5 rows):**\n\n| quarter | default_rate |\n| --- | --- |\n| 2023Q1 | 0.0485 |\n| 2023Q2 | 0.0502 |\n| 2023Q3 | 0.052 |\n| 2023Q4 | 0.0547 |\n| 2024Q1 | 0.0557 |\n\n## loan_cohorts (3 rows)\n\n| Column | Type | PK |\n| --- | --- | --- |\n| cohort | TEXT | Y |\n| exposure_ead | REAL |  |\n| lgd | REAL |  |\n| avg_fico | INTEGER |  |\n| avg_dti | REAL |  |\n| avg_ltv | REAL |  |\n\n**Sample (3 rows):**\n\n| cohort | exposure_ead | lgd | avg_fico | avg_dti | avg_ltv |\n| --- | --- | --- | --- | --- | --- |\n| Prime | 7600000000.0 | 0.38 | 744 | 0.22 | 0.68 |\n| Near-Prime | 5100000000.0 | 0.47 | 692 | 0.28 | 0.74 |\n| Subprime | 2900000000.0 | 0.58 | 622 | 0.34 | 0.8 |\n\n## macro_quarterly (12 rows)\n\n| Column | Type | PK |\n| --- | --- | --- |\n| quarter | TEXT | Y |\n| gdp_growth | REAL |  |\n| unemployment_rate | REAL |  |\n| fed_funds_rate | REAL |  |\n\n**Sample (5 rows):**\n\n| quarter | gdp_growth | unemployment_rate | fed_funds_rate |\n| --- | --- | --- | --- |\n| 2023Q1 | 1.52 | 4.0 | 4.75 |\n| 2023Q2 | 1.27 | 4.5 | 4.38 |\n| 2023Q3 | 1.26 | 4.46 | 3.95 |\n| 2023Q4 | 1.63 | 3.89 | 4.02 |\n| 2024Q1 | 1.62 | 4.87 | 4.06 |\n\n## policy_snapshot (1 rows)\n\n| Column | Type | PK |\n| --- | --- | --- |\n| as_of_quarter | TEXT | Y |\n| forecast_window_quarters | INTEGER |  |\n| gdp_trigger_threshold | REAL |  |\n| macro_overlay_multiplier | REAL |  |\n| stress_pd_multiplier | REAL |  |\n| min_cet1_ratio | REAL |  |\n| escalation_default_threshold | REAL |  |\n| approved_discount_rate | REAL |  |\n| memo_template_version | TEXT |  |\n\n**Sample (1 rows):**\n\n| as_of_quarter | forecast_window_quarters | gdp_trigger_threshold | macro_overlay_multiplier | stress_pd_multiplier | min_cet1_ratio | escalation_default_threshold | approved_discount_rate | memo_template_version |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| 2026Q1 | 12 | 1.5 | 1.15 | 1.15 | 0.12 | 0.06 | 0.085 | RM-2025.11 |\n",
+  "references": [],
+  "warnings": []
+}

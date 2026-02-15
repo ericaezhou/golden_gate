@@ -1,0 +1,38 @@
+{
+  "file_id": "alice_past_runs_and_sensitivity.xlsx",
+  "file_path": "/Users/magnus/git/golden_gate/data/alice_past_runs_and_sensitivity.xlsx",
+  "file_type": "xlsx",
+  "metadata": {
+    "sheets": [
+      {
+        "name": "Past_Run_Summary",
+        "dimensions": "A1:L4",
+        "row_count": 4,
+        "has_formulas": false,
+        "formula_cells": 0,
+        "comments": []
+      },
+      {
+        "name": "Sensitivity_WACC",
+        "dimensions": "A1:B8",
+        "row_count": 8,
+        "has_formulas": false,
+        "formula_cells": 0,
+        "comments": []
+      },
+      {
+        "name": "Stress_Scenarios",
+        "dimensions": "A1:D3",
+        "row_count": 3,
+        "has_formulas": false,
+        "formula_cells": 0,
+        "comments": []
+      }
+    ],
+    "named_ranges": [],
+    "hidden_sheets": []
+  },
+  "content": "## Sheet: Past_Run_Summary\n\n| A | B | C | D | E | F | G | H | I | J | K | L |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n| run_id | as_of_quarter | window_q | macro_overlay_applied | stress_mult | discount_rate | pd_base_12m | pd_stress_12m | cet1_base | cet1_stress | memo_status | notes |\n| 101 | 2025Q3 | 4 | No | 1.1 | 0.105 | 0.054 | 0.0594 | 0.123 | 0.1205 | Sent | Used shortcut due to data delay |\n| 102 | 2025Q4 | 4 | No | 1.1 | 0.105 | 0.055 | 0.0605 | 0.1225 | 0.1198 | Sent | Same as prior; macro overlay not discussed |\n| 103 | 2026Q1 | 4 | No | 1.1 | 0.105 | 0.058 | 0.0638 | 0.124 | 0.121 | Draft | Board memo draft in progress |\n\n## Sheet: Sensitivity_WACC\n\n| A | B |\n|---|---|\n| wacc | risk_adjusted_npv |\n| 0.09 | 3706480704.29 |\n| 0.095 | 3655938486.55 |\n| 0.1 | 3606311044.33 |\n| 0.105 | 3557577775 |\n| 0.11 | 3509718630.24 |\n| 0.115 | 3462714098.76 |\n| 0.12 | 3416545189.5 |\n\n## Sheet: Stress_Scenarios\n\n| A | B | C | D |\n|---|---|---|---|\n| scenario | pd_multiplier | description | policy_alignment |\n| Legacy_Stress | 1.1 | Increase PD by 10% for 'mild recession' stress | No (policy says 1.15) |\n| Policy_Stress_Target | 1.15 | Increase PD by 15% when stress scenario invoked | Yes |\n\n",
+  "references": [],
+  "warnings": []
+}

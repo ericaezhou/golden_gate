@@ -1,0 +1,89 @@
+{
+  "resolved": [
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "portfolio_risk.db",
+      "target_file": "portfolio_risk.db",
+      "type": "filename"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "risk_policy_v3_2.docx",
+      "target_file": "risk_policy_v3_2.docx",
+      "type": "filename"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "alice_past_runs_and_sensitivity.xlsx",
+      "target_file": "alice_past_runs_and_sensitivity.xlsx",
+      "type": "filename"
+    },
+    {
+      "source": "policy_compliant_queries.sql",
+      "target": "capital_position",
+      "target_file": "portfolio_risk.db",
+      "type": "table"
+    },
+    {
+      "source": "policy_compliant_queries.sql",
+      "target": "historical_defaults",
+      "target_file": "portfolio_risk.db",
+      "type": "table"
+    },
+    {
+      "source": "policy_compliant_queries.sql",
+      "target": "loan_cohorts",
+      "target_file": "portfolio_risk.db",
+      "type": "table"
+    },
+    {
+      "source": "policy_compliant_queries.sql",
+      "target": "macro_quarterly",
+      "target_file": "portfolio_risk.db",
+      "type": "table"
+    },
+    {
+      "source": "policy_compliant_queries.sql",
+      "target": "policy_snapshot",
+      "target_file": "portfolio_risk.db",
+      "type": "table"
+    }
+  ],
+  "unresolved": [
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "sqlite3",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "pandas",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "numpy",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "pathlib",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "data",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "analysis",
+      "type": "unknown"
+    },
+    {
+      "source": "forecast_and_valuation_model.ipynb",
+      "target": "current_run_output.csv",
+      "type": "unknown"
+    }
+  ]
+}

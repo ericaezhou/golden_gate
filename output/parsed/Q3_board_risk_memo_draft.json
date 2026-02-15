@@ -1,0 +1,13 @@
+{
+  "file_id": "Q3_board_risk_memo_draft.docx",
+  "file_path": "/Users/magnus/git/golden_gate/data/Q3_board_risk_memo_draft.docx",
+  "file_type": "docx",
+  "metadata": {
+    "paragraph_count": 15,
+    "table_count": 0,
+    "headings": []
+  },
+  "content": "**Q3 Board Risk Memo \u2014 Draft**\n\nPrepared by: Alice Chen (Sr. Risk Analyst)\n\nAs-of Quarter: 2026Q1\n\nExecutive Summary\n\nProjected 12-month default rate: 5.8%\n\nProjected CET1 ratio post-forecast (base): 12.4%\n\nProjected CET1 ratio post-forecast (stress): 12.1%\n\nConclusion\n\nPortfolio remains within risk tolerance; no escalation required for the upcoming Board Risk Committee meeting.\n\nKey Assumptions (legacy)\n\n- Forecast window: last 4 quarters\n\n- Stress PD multiplier: +10%\n\n- Discount rate for risk-adjusted NPV: 10.5%\n\nOpen Items\n\n- Confirm whether macro overlay is required for 2026Q1.",
+  "references": [],
+  "warnings": []
+}
