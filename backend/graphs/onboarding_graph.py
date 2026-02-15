@@ -2,7 +2,10 @@
 
 Provides:
   1. A generated narrative overview of the project.
-  2. An interactive QA loop backed by hybrid retrieval.
+  2. An interactive QA loop backed by system-prompt context (no vector DB).
+
+Knowledge graph visualization is generated on-demand via a separate
+tool call / API endpoint — it is NOT a node in this graph.
 
 This graph reads from the knowledge store produced by the
 offboarding graph.
@@ -16,7 +19,6 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from backend.models.state import OnboardingState
-from backend.services.embeddings import RetrievalService
 from backend.services.llm import call_llm
 from backend.services.storage import SessionStorage
 
@@ -51,15 +53,16 @@ async def generate_narrative(state: OnboardingState) -> dict:
 # Node: QA loop (human-in-the-loop)
 # ------------------------------------------------------------------
 async def qa_loop(state: OnboardingState) -> dict:
-    """Interactive QA: new hire asks questions, agent answers with citations.
+    """Interactive QA: new hire asks questions, agent answers from system prompt.
 
     Uses interrupt() to wait for user questions from the frontend.
-    Each turn: retrieve → answer → gap-detect.
+    Each turn: LLM answers grounded in the deep dives + interview knowledge.
+    No vector retrieval — the full knowledge base is the system prompt.
 
-    Reads from: state["session_id"], state["retrieval_index"]
+    Reads from: state["session_id"], state["qa_system_prompt"]
     Writes to:  state["chat_history"]
 
-    TODO: Implement retrieval + LLM answering + gap detection.
+    TODO: Implement LLM answering + gap detection.
           See docs/implementation_design.md §5.3.
     """
     session_id = state["session_id"]
@@ -70,8 +73,8 @@ async def qa_loop(state: OnboardingState) -> dict:
         "mode": "qa",
     })
 
-    # --- Placeholder retrieval + answer ---
-    answer = f"[TODO] Answer based on retrieval for: {user_input}"
+    # --- Placeholder: answer using qa_system_prompt as context ---
+    answer = f"[TODO] Answer using system-prompt context for: {user_input}"
     citations: list[str] = []
     confidence = "medium"
     gap_ticket = None
@@ -107,5 +110,6 @@ def build_onboarding_graph():
     builder.add_edge("generate_narrative", "qa_loop")
     # qa_loop uses interrupt() — graph pauses here until user sends input
     builder.add_edge("qa_loop", "qa_loop")  # loop back for next question
+    # Knowledge graph is NOT a graph node — generated on-demand via API
 
     return builder.compile()

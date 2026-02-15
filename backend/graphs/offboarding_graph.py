@@ -1,8 +1,7 @@
 """Offboarding Graph — the main pipeline.
 
 Orchestrates: parse → fan-out deep dives → concatenate → global
-summarize → reconcile questions → interview → generate package
-→ build index.
+summarize → reconcile questions → interview → [package + qa_context].
 
 This is the "spine" of the system.  Individual node implementations
 live in backend/nodes/ and can be developed independently.
@@ -14,7 +13,7 @@ from langgraph.types import Send
 from langgraph.graph import END, START, StateGraph
 
 from backend.models.state import OffboardingState
-from backend.nodes.build_index import build_retrieval_index
+from backend.nodes.build_qa_context import build_qa_context
 from backend.nodes.concatenate import concatenate_deep_dives
 from backend.nodes.deep_dive import prepare_deep_dive_input
 from backend.nodes.generate_package import generate_onboarding_package
@@ -73,7 +72,7 @@ def build_offboarding_graph():
     builder.add_node("reconcile_questions", reconcile_questions)
     builder.add_node("interview_loop", interview_loop)
     builder.add_node("generate_onboarding_package", generate_onboarding_package)
-    builder.add_node("build_retrieval_index", build_retrieval_index)
+    builder.add_node("build_qa_context", build_qa_context)
 
     # --- Add edges ---
     builder.add_edge(START, "parse_files")
@@ -93,9 +92,12 @@ def build_offboarding_graph():
     builder.add_edge("concatenate_deep_dives", "global_summarize")
     builder.add_edge("global_summarize", "reconcile_questions")
     builder.add_edge("reconcile_questions", "interview_loop")
+
+    # Post-interview fan-out: package + QA context run in parallel
     builder.add_edge("interview_loop", "generate_onboarding_package")
-    builder.add_edge("generate_onboarding_package", "build_retrieval_index")
-    builder.add_edge("build_retrieval_index", END)
+    builder.add_edge("interview_loop", "build_qa_context")
+    builder.add_edge("generate_onboarding_package", END)
+    builder.add_edge("build_qa_context", END)
 
     return builder.compile()
 

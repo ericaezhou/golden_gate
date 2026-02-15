@@ -1,8 +1,9 @@
-"""Routes: onboarding — narrative, QA.
+"""Routes: onboarding — narrative, QA, knowledge graph.
 
 Endpoints:
     GET  /api/onboarding/{session_id}/narrative
     POST /api/onboarding/{session_id}/ask
+    GET  /api/onboarding/{session_id}/knowledge-graph
 """
 
 from __future__ import annotations
@@ -54,10 +55,13 @@ async def ask_question(
     session_id: str,
     body: QARequest,
 ) -> dict[str, Any]:
-    """Answer a new hire's question using hybrid retrieval.
+    """Answer a new hire's question using system-prompt context.
 
-    TODO: Wire into the onboarding graph's qa_loop or call
-          RetrievalService + LLM directly.
+    The QA agent uses the deep dives + interview summary as its
+    system prompt — no vector DB retrieval.
+
+    TODO: Wire into the onboarding graph's qa_loop or call LLM
+          with qa_system_prompt.txt as system prompt.
           See docs/implementation_design.md §5.3.
     """
     logger.info(
@@ -71,4 +75,34 @@ async def ask_question(
         "citations": [],
         "confidence": "low",
         "gap_ticket": None,
+    }
+
+
+@router.get("/{session_id}/knowledge-graph")
+async def get_knowledge_graph(session_id: str) -> dict[str, Any]:
+    """Generate or return cached knowledge graph for visualization.
+
+    On first call: reads structured_files + interview_summary from the
+    session store, calls LLM to generate the graph JSON, and caches it.
+    On subsequent calls: returns the cached graph.
+
+    TODO: Implement LLM call for graph generation.
+          See docs/implementation_design.md §5.4.
+    """
+    store = SessionStorage(session_id)
+
+    # Try to return cached graph
+    try:
+        graph = store.load_json("knowledge_graph/graph.json")
+        return {"session_id": session_id, "graph": graph, "cached": True}
+    except FileNotFoundError:
+        pass
+
+    # --- Placeholder: generate on-demand ---
+    # TODO: Load structured_files + interview_summary, call LLM
+    return {
+        "session_id": session_id,
+        "graph": {"nodes": [], "edges": []},
+        "cached": False,
+        "note": "[TODO] Knowledge graph generation not yet implemented",
     }

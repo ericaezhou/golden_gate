@@ -11,6 +11,6 @@ Ownership guide (assign one person per node):
   - global_summarize.py     → cross-file reasoning
   - reconcile_questions.py  → question dedup & prioritization
   - interview.py            → interactive interview loop
-  - generate_package.py     → onboarding doc generation
-  - build_index.py          → ChromaDB indexing
+  - generate_package.py     → onboarding doc generation (LLM remix)
+  - build_qa_context.py     → assemble QA agent system prompt (pure code)
 """

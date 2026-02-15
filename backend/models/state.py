@@ -59,9 +59,11 @@ class OffboardingState(TypedDict, total=False):
     # Interview output
     interview_transcript: list[InterviewTurn]
     extracted_facts: Annotated[list[str], _append_list]
+    interview_summary: str                               # plain text summary
 
-    # Final deliverable
+    # Final deliverables
     onboarding_package: OnboardingPackage | None
+    qa_system_prompt: str                                # deep dives + interview → QA agent context
 
     # Progress tracking
     status: str
@@ -97,7 +99,8 @@ class FileDeepDiveOutput(TypedDict, total=False):
 class OnboardingState(TypedDict, total=False):
     session_id: str
     onboarding_package: OnboardingPackage
-    retrieval_index: str         # ChromaDB collection name
+    qa_system_prompt: str                   # deep dives + interview summary (txt)
+    knowledge_graph: dict | None            # populated on-demand via tool call
     chat_history: Annotated[list[dict], add_messages]
-    current_mode: str            # "narrative" | "qa"
-    narrative: str               # generated narrative markdown
+    current_mode: str                       # "narrative" | "qa"
+    narrative: str                          # generated narrative markdown
