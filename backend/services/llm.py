@@ -55,16 +55,27 @@ async def call_llm(
         The assistant's response as a string.
     """
     client = _get_client()
-    response = await client.chat.completions.create(
-        model=model or settings.LLM_MODEL,
-        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
+    used_model = model or settings.LLM_MODEL
+    logger.info(
+        "LLM call: model=%s, system_len=%d, user_len=%d",
+        used_model, len(system_prompt), len(user_prompt),
     )
-    return response.choices[0].message.content or ""
+    try:
+        response = await client.chat.completions.create(
+            model=used_model,
+            temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
+            max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        result = response.choices[0].message.content or ""
+        logger.info("LLM response: %d chars", len(result))
+        return result
+    except Exception as e:
+        logger.error("LLM call FAILED: %s", e)
+        raise
 
 
 async def call_llm_json(
@@ -82,17 +93,27 @@ async def call_llm_json(
     doesn't support response_format.
     """
     client = _get_client()
-    response = await client.chat.completions.create(
-        model=model or settings.LLM_MODEL,
-        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
+    used_model = model or settings.LLM_MODEL
+    logger.info(
+        "LLM JSON call: model=%s, system_len=%d, user_len=%d",
+        used_model, len(system_prompt), len(user_prompt),
     )
-    raw = response.choices[0].message.content or ""
+    try:
+        response = await client.chat.completions.create(
+            model=used_model,
+            temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
+            max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw = response.choices[0].message.content or ""
+        logger.info("LLM JSON response: %d chars", len(raw))
+    except Exception as e:
+        logger.error("LLM JSON call FAILED: %s", e)
+        raise
 
     # Try direct parse first
     try:

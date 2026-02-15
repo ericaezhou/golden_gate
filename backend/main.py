@@ -36,6 +36,11 @@ if not settings.OPENAI_API_KEY:
         "OPENAI_API_KEY is not set. LLM calls will fail. "
         "Set it in .env or as an environment variable."
     )
+else:
+    logger.info(
+        "OPENAI_API_KEY loaded (%d chars, starts with %s...)",
+        len(settings.OPENAI_API_KEY), settings.OPENAI_API_KEY[:8],
+    )
 
 # ------------------------------------------------------------------
 # App
@@ -76,13 +81,21 @@ async def health():
 # CLI entry point
 # ------------------------------------------------------------------
 def start():
-    """Entry point for `uv run serve`."""
+    """Entry point for `uv run serve`.
+
+    reload_dirs restricts the file watcher to ONLY the backend/ source
+    directory.  This prevents uploaded data files (e.g. .py files saved
+    to data/sessions/) from triggering a reload that kills the pipeline.
+    """
+    import pathlib
+
+    backend_dir = str(pathlib.Path(__file__).resolve().parent)
     uvicorn.run(
         "backend.main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=True,
-        reload_dirs=["backend"],
+        reload_dirs=[backend_dir],
     )
 
 

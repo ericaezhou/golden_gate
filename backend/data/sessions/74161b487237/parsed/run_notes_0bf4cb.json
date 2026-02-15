@@ -1,0 +1,31 @@
+{
+  "file_id": "run_notes_0bf4cb",
+  "file_name": "run_notes.txt",
+  "file_type": "txt",
+  "parsed_content": {
+    "content": "## RISK FORECAST RUN NOTES — Q3 2024\nAlice Chen — last updated Sept 20, 2024\n\n## SEPT 15 RUN (FINAL):\n- Ran loss_forecast_model.py against portfolio_risk.db\n- Used 4-quarter lookback (shortcut) since GDP is still > 1%\n- Baseline came out at 5.85%, consistent with recent trend\n## - Applied overlays manually in Q3_2024_forecast.xlsx:\n    * Near prime:     +1.2%  (two months of >25% cohort variance)\n    * Subprime:       +3.1%  (DQ trend + Jan/Feb cohort miss)\n    * Deep subprime:  +4.5%  (keeping new product buffer from March)\n- Total reserve impact: $17.6M\n- Sent board_risk_presentation.pptx to David for review\n- Need CFO sign-off on subprime overlay (>$5M threshold)\n\n## ESCALATION NOTES:\n- Routine (<$2M): just log it in Q3_2024_forecast.xlsx adjustment tab\n- Risk committee ($2-5M): present at weekly sync — bring cohort data\n- CFO ($5M+): email with loss_forecast_model.py output + rationale\n- Board threshold: STILL not formally set. Operating on verbal ~$10M\n  from CFO conversation in June. Need to get this in writing.\n- If I'm not available, check with Marcus Park — he knows the model\n  but hasn't done overlays or escalation himself yet.\n\n## OVERLAY DECISION PROCESS (my mental model):\n- Watch 30-day DQ rates monthly by segment\n- If DQ jumps >15% MoM for any segment, start considering an overlay\n- Cohort variance >25% for 2+ consecutive months = apply overlay\n- Sizing: roughly 1% overlay per 10% DQ increase, cap at 5%\n- New products < 6 months old: always add 20% buffer on top\n- Document in Q3_2024_forecast.xlsx column F (I've been bad about this)\n- When to remove: 3 consecutive months of <10% variance\n\n## LEGACY VS POLICY METHOD:\n- risk_queries.sql has both 12q (policy) and 4q (shortcut) queries\n- I use the 4-quarter shortcut when GDP > 1.5% and no major Fed moves\n- When macro is volatile, switch to 12-quarter (it's more conservative)\n- For the board deck I used the 4q shortcut — faster turnaround\n- The difference is usually < 0.3% but can hit 1-2% in a regime change\n- model_methodology.docx says 12q is required but I've been using 4q\n  for 2+ years with no issues raised\n\n## TODO BEFORE LEAVING:\n- [ ] Document overlay criteria in model_methodology.docx (Section 4 is blank)\n- [ ] Get board notification threshold formalized (still verbal)\n- [ ] Train Marcus on the overlay process end-to-end\n- [ ] Update stress_testing.ipynb to use 12-quarter baseline\n- [ ] Make sure board_risk_presentation.pptx methodology slides are accurate\n- [ ] Add approval tracking to Q3_2024_forecast.xlsx (column E always empty)\n- [ ] Reconcile loss_forecast_model.py with policy-approved parameters\n",
+    "references": [
+      "loss_forecast_model.py",
+      "portfolio_risk.db",
+      "Q3_2024_forecast.xlsx",
+      "board_risk_presentation.pptx",
+      "risk_queries.sql",
+      "model_methodology.docx",
+      "stress_testing.ipynb"
+    ]
+  },
+  "metadata": {
+    "line_count": 51,
+    "detected_sections": [
+      "RISK FORECAST RUN NOTES — Q3 2024",
+      "SEPT 15 RUN (FINAL):",
+      "- Applied overlays manually in Q3_2024_forecast.xlsx:",
+      "ESCALATION NOTES:",
+      "OVERLAY DECISION PROCESS (my mental model):",
+      "LEGACY VS POLICY METHOD:",
+      "TODO BEFORE LEAVING:"
+    ],
+    "bullet_count": 35
+  },
+  "raw_path": "data/sessions/74161b487237/raw_files/run_notes.txt"
+}

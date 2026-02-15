@@ -89,6 +89,4 @@ async def build_qa_context(state: OffboardingState) -> dict:
 
     return {
         "qa_system_prompt": qa_system_prompt,
-        "status": "complete",
-        "current_step": "build_qa_context",
     }

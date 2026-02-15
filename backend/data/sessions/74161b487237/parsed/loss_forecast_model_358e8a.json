@@ -1,0 +1,88 @@
+{
+  "file_id": "loss_forecast_model_358e8a",
+  "file_name": "loss_forecast_model.py",
+  "file_type": "py",
+  "parsed_content": {
+    "content": "# Python Source Analysis\n\n## Summary\n\n### Imports\n- `sqlite3`\n- `pandas`\n- `numpy`\n- `from datetime import datetime`\n- `from typing import Dict`\n- `from typing import Optional`\n- `from typing import Tuple`\n\n### Functions\n- `load_historical_defaults(db_path)` (line 55) ✓\n- `compute_baseline_rate(defaults_df, n_quarters)` (line 63) ✓\n- `apply_macro_overlay(base_rate, macro_data)` (line 76) ✓\n- `should_escalate(impact_amount)` (line 109) ✓\n- `generate_forecast(db_path)` (line 127) ✓\n\n### Constants\n- `DB_PATH`\n- `FORECAST_OUTPUT`\n- `LOOKBACK_QUARTERS`\n- `SEGMENTS`\n- `MACRO_OVERLAY_MULTIPLIER`\n- `ESCALATION_THRESHOLDS`\n- `SEGMENT_LOSS_THRESHOLDS`\n\n### TODOs\n- # TODO: Policy (model_methodology.docx) specifies 12 quarters.\n- # TODO: Ask Alice — she applies this manually\n- # TODO: Manual overlay criteria not documented.\n- # FIXME: This logic MUST be formalized before Alice leaves.\n- # TODO: Board threshold is undefined — Alice handles this case manually\n\n## Source Code\n\n```python\n\"\"\"\nCredit Loss Forecasting Model — Q3 2024\nAuthor: Alice Chen, Risk Analyst\nLast Updated: 2024-09-15\n\nCalculates quarterly credit loss forecasts using historical defaults\nand macroeconomic adjustments.\n\nReferences:\n    - Data source: portfolio_risk.db\n    - SQL queries: risk_queries.sql\n    - Policy doc:  model_methodology.docx\n    - Output:      Q3_2024_forecast.xlsx\n\"\"\"\n\nimport sqlite3\nimport pandas as pd\nimport numpy as np\nfrom datetime import datetime\nfrom typing import Dict, Optional, Tuple\n\n# --- Configuration ---\nDB_PATH = \"portfolio_risk.db\"\nFORECAST_OUTPUT = \"Q3_2024_forecast.xlsx\"\n\n# TODO: Policy (model_methodology.docx) specifies 12 quarters.\n#       Using 4 here because Alice says the difference is < 0.3%\n#       when macro conditions are stable.\nLOOKBACK_QUARTERS = 4\n\n# Segment definitions\nSEGMENTS = [\"prime\", \"near_prime\", \"subprime\", \"deep_subprime\"]\n\n# Macro overlay multiplier — applied when GDP drops below trigger\n# See policy_snapshot table in portfolio_risk.db for approved value\nMACRO_OVERLAY_MULTIPLIER = None  # TODO: Ask Alice — she applies this manually\n\n# Escalation thresholds (dollar impact)\nESCALATION_THRESHOLDS = {\n    \"routine\": 0,               # Analyst sign-off only\n    \"risk_committee\": 2_000_000, # Weekly sync review\n    \"cfo_approval\": 5_000_000,   # CFO email approval (3-5 day lead time)\n    \"board_notification\": None,  # Verbal guidance from CFO (~$10M) — not in any policy\n}\n\n# Segment-level loss thresholds for triggering an overlay\nSEGMENT_LOSS_THRESHOLDS = {\n    \"prime\": 0.03,\n    \"near_prime\": 0.07,\n    \"subprime\": None,        # Alice adjusts this quarterly — no fixed value\n    \"deep_subprime\": None,   # Not defined; Alice decides at runtime\n}\n\n\ndef load_historical_defaults(db_path: str = DB_PATH) -> pd.DataFrame:\n    \"\"\"Load historical default rates from portfolio_risk.db.\"\"\"\n    conn = sqlite3.connect(db_path)\n    df = pd.read_sql(\"SELECT * FROM historical_defaults ORDER BY quarter DESC\", conn)\n    conn.close()\n    return df\n\n\ndef compute_baseline_rate(\n    defaults_df: pd.DataFrame,\n    n_quarters: int = LOOKBACK_QUARTERS,\n) -> float:\n    \"\"\"Compute rolling average default rate.\n\n    NOTE: Policy specifies 12-quarter window (see risk_queries.sql query A).\n    We use 4-quarter here for speed. Alice says it's fine when GDP > 1.5%.\n    \"\"\"\n    recent = defaults_df.head(n_quarters)\n    return recent[\"default_rate\"].mean()\n\n\ndef apply_macro_overlay(\n    base_rate: float,\n    macro_data: Optional[Dict] = None,\n) -> Tuple[float, float]:\n    \"\"\"Apply macroeconomic adjustment to base rate.\n\n    Returns (adjusted_rate, overlay_amount).\n\n    WARNING: The overlay sizing logic below is a rough sketch.\n    The actual criteria Alice uses are NOT fully captured here.\n    \"\"\"\n    if macro_data is None:\n        return base_rate, 0.0\n\n    overlay = 0.0\n\n    # TODO: Manual overlay criteria not documented.\n    #       Alice applies +1% to +5% based on her judgment.\n    #       Rough heuristic from her notes:\n    #         - 10% delinquency increase → +1% overlay\n    #         - Cap at 5% per segment\n    #       But she also considers cohort variance, new product buffers,\n    #       and \"gut feel\" from 4 years of experience.\n    # FIXME: This logic MUST be formalized before Alice leaves.\n\n    if macro_data.get(\"gdp_growth\", 0) < 1.5:\n        overlay += 0.02  # Recession buffer\n    if macro_data.get(\"unemployment_delta\", 0) > 0.5:\n        overlay += macro_data[\"unemployment_delta\"] * 0.01\n\n    return base_rate + overlay, overlay\n\n\ndef should_escalate(impact_amount: float) -> str:\n    \"\"\"Determine escalation level based on dollar impact.\n\n    Returns one of: 'routine', 'risk_committee', 'cfo', 'board'.\n\n    NOTE: Board notification threshold was never formally approved.\n    Alice operates on verbal ~$10M guidance from CFO.\n    \"\"\"\n    # TODO: Board threshold is undefined — Alice handles this case manually\n    if impact_amount >= 10_000_000:\n        return \"board\"  # Alice's verbal rule, not in policy\n    for level in [\"cfo_approval\", \"risk_committee\", \"routine\"]:\n        threshold = ESCALATION_THRESHOLDS.get(level, 0) or 0\n        if impact_amount >= threshold:\n            return level.replace(\"_approval\", \"\")\n    return \"routine\"\n\n\ndef generate_forecast(db_path: str = DB_PATH) -> pd.DataFrame:\n    \"\"\"Generate full quarterly forecast.\n\n    Output is saved to Q3_2024_forecast.xlsx after manual overlay review.\n    \"\"\"\n    defaults_df = load_historical_defaults(db_path)\n    baseline = compute_baseline_rate(defaults_df)\n\n    results = []\n    for segment in SEGMENTS:\n        threshold = SEGMENT_LOSS_THRESHOLDS.get(segment)\n        results.append({\n            \"segment\": segment,\n            \"baseline_rate\": round(baseline, 4),\n            \"macro_overlay\": 0.0,        # Filled in manually by Alice\n            \"final_rate\": round(baseline, 4),  # Updated after overlay\n            \"threshold\": threshold,       # May be None — that's a problem\n            \"rationale\": \"\",              # Alice fills this in (but rarely does)\n        })\n\n    return pd.DataFrame(results)\n\n\nif __name__ == \"__main__\":\n    forecast = generate_forecast()\n    forecast.to_excel(FORECAST_OUTPUT, index=False)\n    print(forecast)\n\n```",
+    "references": [
+      "sqlite3",
+      "pandas",
+      "numpy",
+      "datetime",
+      "typing"
+    ]
+  },
+  "metadata": {
+    "imports": [
+      "sqlite3",
+      "pandas",
+      "numpy",
+      "from datetime import datetime",
+      "from typing import Dict",
+      "from typing import Optional",
+      "from typing import Tuple"
+    ],
+    "functions": [
+      {
+        "name": "load_historical_defaults",
+        "args": [
+          "db_path"
+        ],
+        "has_docstring": true,
+        "lineno": 55
+      },
+      {
+        "name": "compute_baseline_rate",
+        "args": [
+          "defaults_df",
+          "n_quarters"
+        ],
+        "has_docstring": true,
+        "lineno": 63
+      },
+      {
+        "name": "apply_macro_overlay",
+        "args": [
+          "base_rate",
+          "macro_data"
+        ],
+        "has_docstring": true,
+        "lineno": 76
+      },
+      {
+        "name": "should_escalate",
+        "args": [
+          "impact_amount"
+        ],
+        "has_docstring": true,
+        "lineno": 109
+      },
+      {
+        "name": "generate_forecast",
+        "args": [
+          "db_path"
+        ],
+        "has_docstring": true,
+        "lineno": 127
+      }
+    ],
+    "classes": [],
+    "constants": [
+      "DB_PATH",
+      "FORECAST_OUTPUT",
+      "LOOKBACK_QUARTERS",
+      "SEGMENTS",
+      "MACRO_OVERLAY_MULTIPLIER",
+      "ESCALATION_THRESHOLDS",
+      "SEGMENT_LOSS_THRESHOLDS"
+    ],
+    "todos": [
+      "# TODO: Policy (model_methodology.docx) specifies 12 quarters.",
+      "# TODO: Ask Alice — she applies this manually",
+      "# TODO: Manual overlay criteria not documented.",
+      "# FIXME: This logic MUST be formalized before Alice leaves.",
+      "# TODO: Board threshold is undefined — Alice handles this case manually"
+    ]
+  },
+  "raw_path": "data/sessions/74161b487237/raw_files/loss_forecast_model.py"
+}

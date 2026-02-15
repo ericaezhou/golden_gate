@@ -29,6 +29,7 @@ async def parse_files(state: OffboardingState) -> dict:
     session_id = state["session_id"]
     store = SessionStorage(session_id)
     raw_files = store.list_raw_files()
+    logger.info("parse_files: found %d raw files for session %s", len(raw_files), session_id)
 
     structured_files: list[StructuredFile] = []
     errors: list[str] = []

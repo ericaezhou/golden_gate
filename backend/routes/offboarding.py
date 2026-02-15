@@ -16,12 +16,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
 from backend.config import settings
-from backend.graphs.offboarding_graph import build_deep_dive_only_graph
+from backend.graphs.registry import get_offboarding_graph
 from backend.services.storage import SessionStorage, create_session
 
 DEMO_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -43,18 +43,26 @@ def _get_queue(session_id: str) -> asyncio.Queue:
 
 async def _run_pipeline(
     session_id: str,
-    graph: Any,
     initial_state: dict,
 ) -> None:
-    """Run the LangGraph pipeline and push SSE events to the session queue."""
+    """Run the full LangGraph pipeline and push SSE events to the session queue.
+
+    The pipeline runs until it hits the interview_loop's interrupt(),
+    at which point an `interview_ready` event is emitted with the first
+    question.  The interview route handles resuming from there.
+    """
     queue = _get_queue(session_id)
     store = SessionStorage(session_id)
+    graph = get_offboarding_graph()
+    config = {"configurable": {"thread_id": session_id}}
+
     seen_files_parsed: set[str] = set()
     seen_deep_dives: set[str] = set()
     accumulated_reports: list[dict] = []
-    file_id_to_name: dict[str, str] = {}  # hashed file_id → original filename
+    file_id_to_name: dict[str, str] = {}
 
     try:
+        logger.info("=== Pipeline START for session %s ===", session_id)
         await queue.put({
             "event": "step_started",
             "data": json.dumps({
@@ -63,13 +71,23 @@ async def _run_pipeline(
             }),
         })
 
-        async for chunk in graph.astream(initial_state, stream_mode="updates"):
-            # chunk is {node_name: state_update}
+        async for chunk in graph.astream(initial_state, config, stream_mode="updates"):
             for node_name, state_update in chunk.items():
-                logger.info("Graph node completed: %s", node_name)
+                logger.info(
+                    "=== Node completed: %s | keys=%s ===",
+                    node_name, list(state_update.keys()) if isinstance(state_update, dict) else type(state_update).__name__,
+                )
+
+                # Update graph_state.json with progress
+                store.save_json("graph_state.json", {
+                    "session_id": session_id,
+                    "status": "running",
+                    "current_step": node_name,
+                })
 
                 if node_name == "parse_files":
                     files = state_update.get("structured_files", [])
+                    logger.info("parse_files produced %d structured files", len(files))
                     for f in files:
                         file_name = f.get("file_name", "") if isinstance(f, dict) else getattr(f, "file_name", "")
                         file_type = f.get("file_type", "") if isinstance(f, dict) else getattr(f, "file_type", "")
@@ -91,6 +109,12 @@ async def _run_pipeline(
                             "step": "parse_files",
                             "message": f"Parsed {len(files)} files",
                         }),
+                    })
+                    # Update status so polling clients see the transition to deep_dive
+                    store.save_json("graph_state.json", {
+                        "session_id": session_id,
+                        "status": "running",
+                        "current_step": "deep_dive",
                     })
                     await queue.put({
                         "event": "step_started",
@@ -137,47 +161,9 @@ async def _run_pipeline(
                     })
 
                 elif node_name == "concatenate_deep_dives":
-                    # Emit raw gaps from latest-pass-per-file for real-time feel
-                    # (at_risk_knowledge = high, fragile_points = medium; key_mechanics excluded)
-                    latest_by_file: dict[str, dict] = {}
-                    for rpt in accumulated_reports:
-                        fid = rpt.get("file_id", "")
-                        pn = rpt.get("pass_number", 0)
-                        existing = latest_by_file.get(fid)
-                        if existing is None or pn > existing.get("pass_number", 0):
-                            latest_by_file[fid] = rpt
-
-                    for rd in latest_by_file.values():
-                        fid = rd.get("file_id", "")
-                        source_file = file_id_to_name.get(fid, fid)
-                        for item in rd.get("at_risk_knowledge", []):
-                            await queue.put({
-                                "event": "gap_discovered",
-                                "data": json.dumps({
-                                    "text": item,
-                                    "severity": "high",
-                                    "source_file": source_file,
-                                }),
-                            })
-                        for item in rd.get("fragile_points", []):
-                            await queue.put({
-                                "event": "gap_discovered",
-                                "data": json.dumps({
-                                    "text": item,
-                                    "severity": "medium",
-                                    "source_file": source_file,
-                                }),
-                            })
+                    pass  # Intermediate step
 
                 elif node_name == "global_summarize":
-                    # Emit deduplicated gaps — frontend replaces raw gaps with this list
-                    deduped = state_update.get("deduplicated_gaps", [])
-                    await queue.put({
-                        "event": "gaps_reconciled",
-                        "data": json.dumps({
-                            "gaps": deduped,
-                        }),
-                    })
                     await queue.put({
                         "event": "step_completed",
                         "data": json.dumps({
@@ -194,7 +180,6 @@ async def _run_pipeline(
                     })
 
                 elif node_name == "reconcile_questions":
-                    # Emit final reconciled questions
                     questions = state_update.get("question_backlog", [])
                     open_qs = [
                         q for q in questions
@@ -211,7 +196,6 @@ async def _run_pipeline(
                                 "priority": qd.get("priority", "P1"),
                             }),
                         })
-
                     await queue.put({
                         "event": "step_completed",
                         "data": json.dumps({
@@ -220,26 +204,84 @@ async def _run_pipeline(
                         }),
                     })
 
-        # Save final state
+                elif node_name == "interview_loop":
+                    # interview_loop completed — post-interview nodes will follow
+                    await queue.put({
+                        "event": "step_completed",
+                        "data": json.dumps({
+                            "step": "interview",
+                            "message": "Interview complete, generating deliverables...",
+                        }),
+                    })
+
+                elif node_name in ("generate_onboarding_package", "build_qa_context"):
+                    await queue.put({
+                        "event": "deliverable_ready",
+                        "data": json.dumps({
+                            "deliverable": node_name,
+                        }),
+                    })
+
+        # --- Check if the graph is paused at an interrupt (interview) ---
+        graph_state = graph.get_state(config)
+        if graph_state and graph_state.next:
+            # Graph is paused — likely at interview_loop interrupt
+            # Extract the interrupt payload (question info)
+            interrupt_values = []
+            if hasattr(graph_state, "tasks"):
+                for task in graph_state.tasks:
+                    if hasattr(task, "interrupts"):
+                        for intr in task.interrupts:
+                            interrupt_values.append(intr.value)
+
+            question_data = interrupt_values[0] if interrupt_values else {
+                "question_text": "(Interview ready — send your first response)",
+            }
+
+            store.save_json("graph_state.json", {
+                "status": "interview_ready",
+                "current_step": "interview_loop",
+                "session_id": session_id,
+            })
+
+            await queue.put({
+                "event": "interview_ready",
+                "data": json.dumps({
+                    "message": "Analysis complete. Interview ready.",
+                    "question": question_data,
+                }),
+            })
+            return  # Don't emit 'complete' — interview will resume later
+
+        # If we get here, the graph ran to END (e.g. no questions to ask)
         store.save_json("graph_state.json", {
-            **initial_state,
             "status": "complete",
             "current_step": "done",
+            "session_id": session_id,
         })
 
         await queue.put({
             "event": "complete",
-            "data": json.dumps({"message": "Analysis complete"}),
+            "data": json.dumps({"message": "Pipeline complete (no interview needed)"}),
         })
 
     except Exception as e:
         logger.exception("Pipeline failed for session %s", session_id)
+        store.save_json("graph_state.json", {
+            "status": "error",
+            "current_step": "error",
+            "session_id": session_id,
+            "error": str(e),
+        })
         await queue.put({
             "event": "pipeline_error",
             "data": json.dumps({"message": str(e)}),
         })
 
 
+# ------------------------------------------------------------------
+# Endpoints
+# ------------------------------------------------------------------
 @router.get("/demo-files")
 async def list_demo_files() -> list[str]:
     """Return filenames available in the demo data directory."""
@@ -257,7 +299,6 @@ async def get_demo_file(filename: str):
     """Serve a single demo file by name."""
     path = DEMO_DATA_DIR / filename
     if not path.is_file() or not path.resolve().is_relative_to(DEMO_DATA_DIR.resolve()):
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, filename=filename)
 
@@ -269,9 +310,12 @@ async def start_offboarding(
     timeline: str = Form(""),
     files: list[UploadFile] = File(...),
 ) -> dict[str, Any]:
-    """Upload files and kick off the offboarding pipeline.
+    """Upload files and kick off the full offboarding pipeline.
 
-    Returns the session_id which is used for all subsequent calls.
+    The pipeline runs parse → deep_dive → concat → global → reconcile →
+    interview (pauses at interrupt) → package + qa_context.
+
+    Returns the session_id used for all subsequent calls.
     """
     store = create_session(project_name, role, timeline)
     session_id = store.session_id
@@ -282,9 +326,6 @@ async def start_offboarding(
         store.save_uploaded_file(f.filename or "unknown", content)
         logger.info("Saved file: %s (%d bytes)", f.filename, len(content))
 
-    # Build truncated graph (parse → deep dives → concatenate only).
-    # The full graph requires a checkpointer for interview_loop's interrupt().
-    graph = build_deep_dive_only_graph()
     initial_state = {
         "session_id": session_id,
         "project_metadata": {
@@ -304,8 +345,8 @@ async def start_offboarding(
 
     store.save_json("graph_state.json", initial_state)
 
-    # Run graph asynchronously in background
-    task = asyncio.create_task(_run_pipeline(session_id, graph, initial_state))
+    # Run pipeline in background
+    task = asyncio.create_task(_run_pipeline(session_id, initial_state))
     _running_tasks[session_id] = task
 
     return {"session_id": session_id, "status": "started"}
@@ -321,7 +362,6 @@ async def get_status(session_id: str) -> dict[str, Any]:
             "session_id": session_id,
             "current_step": state.get("current_step", "unknown"),
             "status": state.get("status", "unknown"),
-            "errors": state.get("errors", []),
         }
     except FileNotFoundError:
         return {"session_id": session_id, "status": "not_found"}
@@ -339,11 +379,11 @@ async def stream_progress(session_id: str):
 
         while True:
             try:
-                event = await asyncio.wait_for(queue.get(), timeout=300)
+                event = await asyncio.wait_for(queue.get(), timeout=600)
             except asyncio.TimeoutError:
                 yield {
                     "event": "pipeline_error",
-                    "data": json.dumps({"message": "Stream timeout"}),
+                    "data": json.dumps({"message": "Stream timeout (10min)"}),
                 }
                 _session_queues.pop(session_id, None)
                 break
@@ -352,7 +392,7 @@ async def stream_progress(session_id: str):
 
             # Stop streaming on terminal events
             event_type = event.get("event", "")
-            if event_type in ("complete", "pipeline_error"):
+            if event_type in ("complete", "pipeline_error", "interview_ready"):
                 _session_queues.pop(session_id, None)
                 break
 

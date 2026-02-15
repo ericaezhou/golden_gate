@@ -231,12 +231,14 @@ async def run_deep_dive_pass(state: FileDeepDiveState) -> dict:
     session_id: str = state.get("session_id", "")
 
     logger.info(
-        "Deep dive pass %d for %s", pass_number, file.file_name
+        "=== Deep dive pass %d START for %s ===", pass_number, file.file_name
     )
 
     # Build prompt and call LLM
     user_prompt = _build_prompt(file, pass_number, previous)
+    logger.info("Deep dive pass %d: prompt len=%d chars, calling LLM...", pass_number, len(user_prompt))
     data = await call_llm_json(SYSTEM_PROMPT, user_prompt)
+    logger.info("=== Deep dive pass %d DONE for %s ===", pass_number, file.file_name)
 
     # Parse into DeepDiveReport
     report = _parse_llm_response(data, file, pass_number, previous)

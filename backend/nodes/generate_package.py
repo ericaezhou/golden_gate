@@ -166,8 +166,6 @@ async def generate_onboarding_package(state: OffboardingState) -> dict:
 
     return {
         "onboarding_package": package,
-        "status": "package_generated",
-        "current_step": "generate_onboarding_package",
     }
 
 

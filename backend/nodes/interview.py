@@ -263,6 +263,15 @@ async def interview_loop(state: OffboardingState) -> dict:
             "remaining": len(open_qs) - 1,
         })
 
+        # Check for end signal from /end endpoint
+        if isinstance(user_response, str) and user_response == "[USER_ENDED_INTERVIEW]":
+            logger.info("User ended interview early for session %s", session_id)
+            # Mark remaining open questions as deprioritized
+            for q in backlog:
+                if q.status == QuestionStatus.OPEN:
+                    q.status = QuestionStatus.DEPRIORITIZED
+            break
+
         # --- LLM Call 3: Extract facts + confidence + follow-up + new Qs ---
         extraction = await _extract_facts(
             question_text=next_q.question_text,
