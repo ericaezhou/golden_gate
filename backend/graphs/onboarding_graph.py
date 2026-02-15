@@ -22,6 +22,53 @@ from backend.services.storage import SessionStorage
 
 logger = logging.getLogger(__name__)
 
+QA_SYSTEM_PROMPT = """
+You are a "Project QA Onboarding Agent".
+
+## Mission
+Help a new hire answer questions about the project by synthesizing ONLY from the persisted onboarding artifacts provided below. The project name, scope, and details are defined entirely by these artifacts.
+
+## Persisted Onboarding Artifacts (Sole Source of Truth)
+You MUST treat the following as the only reliable information. Do not use outside knowledge.
+
+### A) Interview Summary (high-level narrative from offboarding)
+{interview_summary_context}
+
+### B) Text Summaries (curated written summaries)
+{text_summary_context}
+
+### C) Knowledge Graph (entities, relations, structured facts)
+{kg_context}
+
+### D) Deep Dives (persisted file extracts; most authoritative for technical specifics)
+{deep_dive_context}
+
+## Evidence & Citation Rules (Mandatory)
+1) Every factual claim must be supported by at least one citation to the artifacts above.
+2) Use inline citations with this format:
+   - [Interview Summary]
+   - [Text Summary]
+   - [KG]
+   - [Deep Dive: <file_name or section>]
+3) For technical specifics (APIs, schemas, architecture, deployment, data flow), prioritize Deep Dives first; if missing, fall back to KG, then summaries.
+
+## Answering Policy
+- If the artifacts do not contain the answer, say:
+  "I don't have specific information on <topic> in the persisted artifacts."
+  Then suggest what type of artifact would likely contain it (Interview / Summary / KG / Deep Dive) without inventing file names.
+- Do not guess, assume, or add best-practice advice unless explicitly supported by the artifacts.
+- If the question is ambiguous, ask up to 2 targeted clarification questions and state what missing detail blocks a grounded answer.
+
+## Output Format
+1) Answer (2-6 sentences, concise)
+2) Evidence (sentences with citations)
+3) If Missing: What's not in the artifacts (1-2 sentences)
+
+## User Question
+{user_input}
+"""
+
+
 
 # ------------------------------------------------------------------
 # Node: generate the onboarding narrative
@@ -63,31 +110,52 @@ async def qa_loop(state: OnboardingState) -> dict:
           See docs/implementation_design.md §5.3.
     """
     session_id = state["session_id"]
+    store = SessionStorage(session_id)
+    session_root = store.get_session_path()
 
     # Wait for user question
     user_input = interrupt({
         "prompt": "Ask any question about the project.",
         "mode": "qa",
     })
+    # load global summary and interview summary
+    interview_summary_context = ""
+    text_summary_context = ""
+    if store.exists("summary/global_summary.txt"):
+        text_summary_context = store.load_text("summary/global_summary.txt")
+    if store.exists("interview/interview_summary.txt"):
+        interview_summary_context = store.load_text("interview/interview_summary.txt")
+    
+    # load knowledge graph
+    kg_context = "No KG available."
+    if store.exists("knowledge_graph.json"):
+        kg_data = store.load_json("knowledge_graph.json")
+        kg_context = str(kg_data)
+    
+    # read deep dive file
+    if store.exists("deep_dives/deep_dives.txt"):
+        deep_dive_context = store.load_text("deep_dives/deep_dives.txt")
+    else:
+        deep_dive_context = ""
+
 
     # --- Placeholder retrieval + answer ---
-    answer = f"[TODO] Answer based on retrieval for: {user_input}"
-    citations: list[str] = []
-    confidence = "medium"
-    gap_ticket = None
-
-    new_message = {
-        "role": "assistant",
-        "content": answer,
-        "citations": citations,
-        "confidence": confidence,
-        "gap_ticket": gap_ticket,
-    }
+    formatted_prompt = QA_SYSTEM_PROMPT.format(
+        interview_summary_context=interview_summary_context,
+        text_summary_context=text_summary_context,
+        kg_context=kg_context,
+        deep_dive_context=deep_dive_context,
+        user_input=user_input
+    )
+    response = await call_llm(
+        system_prompt=formatted_prompt,
+        messages=state.get("chat_history", []) # 自动带上历史对话
+    )
 
     return {
         "chat_history": [
             {"role": "user", "content": user_input},
-            new_message,
+            {"role": "assistant", "content": response.content},
         ],
         "current_mode": "qa",
     }
