@@ -10,6 +10,14 @@
   .animate-confetti {
     animation: confettiFall linear forwards;
   }
+
+  .animate-spin-slow {
+    animation: spin 1.5s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 }
 
 @keyframes fadeIn {

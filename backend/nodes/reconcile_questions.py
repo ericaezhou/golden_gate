@@ -60,9 +60,16 @@ Return JSON with exactly one key:
   ]
 }
 
-Keep at most {max_open} open questions. \
+Keep at most {max_open} open questions. Be ruthlessly selective — only keep \
+questions that meet ALL of these criteria:
+1. The answer is CRITICAL for the successor to operate (not just nice-to-know)
+2. The departing employee can actually answer it concretely in an interview
+3. The answer cannot be found by reading the files themselves
+4. It targets a specific fact, value, decision, or process — not vague context
+
 Prioritize questions about undocumented decisions, manual overrides, and \
-knowledge that lives only in the departing employee's head."""
+knowledge that lives only in the departing employee's head. \
+Deprioritize or answer questions about things that are self-evident from the code/docs."""
 
 
 async def reconcile_questions(state: OffboardingState) -> dict:

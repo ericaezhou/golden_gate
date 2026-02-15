@@ -101,25 +101,28 @@ export function useScreeningProgressLive(sessionId: string) {
       setState(prev => ({
         ...prev,
         currentFile: fileName,
-        currentActivity: `Deep dive pass ${data.pass_number} on ${fileName}`,
+        currentActivity: `Analyzing ${fileName}`,
         deepDivedFiles: prev.deepDivedFiles.includes(fileName)
           ? prev.deepDivedFiles
           : [...prev.deepDivedFiles, fileName],
       }))
     })
 
-    es.addEventListener('gap_discovered', (e: MessageEvent) => {
+    // Raw gap_discovered events are ignored — we only show consolidated gaps
+    // from the gaps_reconciled event after global_summarize deduplicates them.
+
+    es.addEventListener('gaps_reconciled', (e: MessageEvent) => {
       const data = JSON.parse(e.data)
-      gapCounter.current += 1
-      const gap: KnowledgeGap = {
-        id: `gap-${gapCounter.current}`,
-        text: data.text,
-        severity: data.severity || 'medium',
-        sourceFile: data.source_file || undefined,
-      }
+      const gaps: KnowledgeGap[] = (data.gaps || []).map((g: { text: string; severity: string; source_files?: string[] }, i: number) => ({
+        id: `gap-${i + 1}`,
+        text: g.text,
+        severity: (g.severity || 'medium') as 'high' | 'medium' | 'low',
+        sourceFile: g.source_files?.join(', '),
+      }))
+      gapCounter.current = gaps.length
       setState(prev => ({
         ...prev,
-        discoveredGaps: [...prev.discoveredGaps, gap],
+        discoveredGaps: gaps,
       }))
     })
 

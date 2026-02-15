@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Bridge AI - Employee Offboarding',
-  description: 'AI-powered employee offboarding and knowledge transfer',
+  title: 'Golden Gate - Offboarding & Onboarding Agent',
+  description: 'AI-powered offboarding and onboarding knowledge transfer',
 }
 
 export default function RootLayout({

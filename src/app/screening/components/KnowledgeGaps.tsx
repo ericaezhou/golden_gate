@@ -9,25 +9,16 @@ interface KnowledgeGapsProps {
 
 type Severity = 'high' | 'medium' | 'low'
 
-const severityStyles: Record<Severity, { bg: string; border: string; badge: string; icon: string }> = {
-  high: {
-    bg: 'bg-red-50',
-    border: 'border-red-200',
-    badge: 'bg-red-100 text-red-700',
-    icon: 'text-red-500',
-  },
-  medium: {
-    bg: 'bg-orange-50',
-    border: 'border-orange-200',
-    badge: 'bg-orange-100 text-orange-700',
-    icon: 'text-orange-500',
-  },
-  low: {
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-200',
-    badge: 'bg-yellow-100 text-yellow-700',
-    icon: 'text-yellow-500',
-  },
+const severityStyles: Record<Severity, { badge: string }> = {
+  high: { badge: 'bg-red-100 text-red-700' },
+  medium: { badge: 'bg-orange-100 text-orange-700' },
+  low: { badge: 'bg-yellow-100 text-yellow-700' },
+}
+
+const severityLabels: Record<Severity, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
 }
 
 const filterButtonStyles: Record<Severity, { active: string; inactive: string }> = {
@@ -115,7 +106,7 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
                     ${isActive ? styles.active : styles.inactive}
                   `}
                 >
-                  {severity} ({count})
+                  {severityLabels[severity]} ({count})
                 </button>
               )
             })}
@@ -134,53 +125,30 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
               No gaps match the selected filters
             </p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="space-y-3">
               {filteredGaps.map((gap, index) => {
                 const styles = severityStyles[gap.severity]
                 return (
                   <div
                     key={gap.id}
-                    className={`
-                      p-3 rounded-lg border transition-all duration-500
-                      ${styles.bg} ${styles.border}
-                      animate-fadeIn
-                    `}
-                    style={{
-                      animationDelay: `${index * 100}ms`,
-                    }}
+                    className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-fadeIn"
+                    style={{ animationDelay: `${index * 50}ms` }}
                   >
-                    <div className="flex items-start gap-2">
-                      <svg
-                        className={`w-4 h-4 mt-0.5 flex-shrink-0 ${styles.icon}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        />
-                      </svg>
-
+                    <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-2">
-                          <p className="text-sm text-gray-800 flex-1">
-                            {gap.text}
-                          </p>
+                        <p className="text-sm text-gray-800">{gap.text}</p>
+                        <div className="flex items-center gap-2 mt-2">
                           <span
-                            className={`
-                              text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0
-                              ${styles.badge}
-                            `}
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}
                           >
-                            {gap.severity}
+                            {severityLabels[gap.severity]}
                           </span>
+                          {gap.sourceFile && (
+                            <span className="text-xs text-gray-400">
+                              from {gap.sourceFile}
+                            </span>
+                          )}
                         </div>
-                        {gap.sourceFile && (
-                          <span className="text-xs text-gray-400 mt-1 block">from {gap.sourceFile}</span>
-                        )}
                       </div>
                     </div>
                   </div>

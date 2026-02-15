@@ -52,6 +52,7 @@ class OffboardingState(TypedDict, total=False):
 
     # Step 3 output
     global_summary: str
+    deduplicated_gaps: list[dict]
 
     # Question management
     question_backlog: list[Question]
