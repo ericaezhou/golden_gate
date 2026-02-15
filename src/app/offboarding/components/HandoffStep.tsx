@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ALICE_CHEN } from '@/data/demoData';
+import { useOffboarding } from '@/context/OffboardingContext';
 
 type Phase = 'documents' | 'memo' | 'agent' | 'complete';
 type ReviewAction = 'pending' | 'accepted' | 'declined' | 'context';
@@ -18,7 +19,7 @@ interface ProposedChange {
   rationale: string;
   status: ReviewAction;
   additionalContext?: string;
-  suggestedContext?: string; // Pre-filled suggestion for demo
+  suggestedContext?: string;
 }
 
 interface ChatMessage {
@@ -33,7 +34,7 @@ const PROPOSED_CHANGES: ProposedChange[] = [
   {
     id: 'change-1',
     fileName: 'loss_model.py',
-    fileIcon: '🐍',
+    fileIcon: '\uD83D\uDC0D',
     fileType: 'python',
     location: 'Lines 66-68',
     issue: 'TODO comment indicates overlay logic is undocumented',
@@ -49,19 +50,19 @@ const PROPOSED_CHANGES: ProposedChange[] = [
     # 4. Material macro shift (unemployment +0.5%, Fed rate change)
     #
     # ADJUSTMENT FORMULA:
-    # - Every 10% increase in early delinquencies → +1% loss forecast
+    # - Every 10% increase in early delinquencies \u2192 +1% loss forecast
     # - Maximum overlay cap: 5% (beyond this, reassess segment strategy)
     # - New products (<6 months): Apply 20% buffer by default
     #
     # overlay_adjustment = min(delinquency_increase * 0.1, 0.05)
     # if is_new_product: overlay_adjustment = max(overlay_adjustment, 0.20)`,
-    rationale: 'Based on your explanation of the overlay decision criteria, including the 15% delinquency trigger, the 10%→1% formula, and the 5% cap.',
+    rationale: 'Based on your explanation of the overlay decision criteria, including the 15% delinquency trigger, the 10%\u21921% formula, and the 5% cap.',
     status: 'pending',
   },
   {
     id: 'change-2',
     fileName: 'threshold_config.py',
-    fileIcon: '🐍',
+    fileIcon: '\uD83D\uDC0D',
     fileType: 'config',
     location: 'Lines 10-18',
     issue: 'Missing threshold values for subprime and deep_subprime segments',
@@ -95,7 +96,7 @@ const PROPOSED_CHANGES: ProposedChange[] = [
   {
     id: 'change-3',
     fileName: 'threshold_config.py',
-    fileIcon: '🐍',
+    fileIcon: '\uD83D\uDC0D',
     fileType: 'config',
     location: 'Lines 48-53',
     issue: 'Missing overlay cap for deep_subprime segment',
@@ -121,7 +122,7 @@ const PROPOSED_CHANGES: ProposedChange[] = [
   {
     id: 'change-4',
     fileName: 'Escalation_Policy.md',
-    fileIcon: '📄',
+    fileIcon: '\uD83D\uDCC4',
     fileType: 'markdown',
     location: 'Section 4.3',
     issue: 'Policy says "see Alice Chen" without documenting the actual workflow',
@@ -165,7 +166,7 @@ const PROPOSED_CHANGES: ProposedChange[] = [
   {
     id: 'change-5',
     fileName: 'Escalation_Policy.md',
-    fileIcon: '📄',
+    fileIcon: '\uD83D\uDCC4',
     fileType: 'markdown',
     location: 'Section 6.2',
     issue: 'Overlay removal criteria lacks specific operational details',
@@ -235,7 +236,7 @@ const GENERATED_MEMO = {
     },
     {
       heading: 'Approval Thresholds',
-      content: '• Under $2M impact: Analyst discretion with documentation\n• $2M - $5M impact: CFO approval via email\n• Over $5M impact: Memo + Risk Committee alignment + CFO formal approval (3-5 business days)',
+      content: '\u2022 Under $2M impact: Analyst discretion with documentation\n\u2022 $2M - $5M impact: CFO approval via email\n\u2022 Over $5M impact: Memo + Risk Committee alignment + CFO formal approval (3-5 business days)',
     },
     {
       heading: 'Backup & Escalation',
@@ -280,13 +281,13 @@ function renderMessageWithSources(content: string): React.ReactNode {
     <div>
       <p className="text-sm whitespace-pre-line">{mainContent}</p>
       {sources.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="text-xs text-gray-500 mb-2">Sources</p>
+        <div className="mt-3 pt-3 border-t border-gg-border">
+          <p className="text-xs text-gg-muted mb-2">Sources</p>
           <div className="flex flex-wrap gap-1.5">
             {sources.map((source, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-md hover:bg-blue-100 cursor-pointer transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-1 bg-gg-accent/10 text-gg-accent-light text-xs rounded-md hover:bg-gg-accent/20 cursor-pointer transition-colors"
               >
                 {source.type === 'file' && (
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -304,7 +305,7 @@ function renderMessageWithSources(content: string): React.ReactNode {
                   </svg>
                 )}
                 <span className="font-medium">{source.type === 'conversation' ? source.detail : source.name}</span>
-                {source.type === 'file' && <span className="text-blue-500">{source.detail}</span>}
+                {source.type === 'file' && <span className="text-gg-accent-light/70">{source.detail}</span>}
               </span>
             ))}
           </div>
@@ -438,7 +439,8 @@ function getAgentResponse(userMessage: string): string {
   return AGENT_RESPONSES['default'];
 }
 
-export default function HandoffPage() {
+export function HandoffStep() {
+  const { setStep } = useOffboarding();
   const [phase, setPhase] = useState<Phase>('documents');
   const [changes, setChanges] = useState<ProposedChange[]>(PROPOSED_CHANGES);
   const [currentChangeIndex, setCurrentChangeIndex] = useState(0);
@@ -552,21 +554,15 @@ export default function HandoffPage() {
     }
   }, [phase, showCelebration]);
 
-  // Celebration to complete transition
+  // Celebration to complete transition - calls setStep(6) instead of showing agent chat
   useEffect(() => {
     if (showCelebration) {
       const timer = setTimeout(() => {
-        setPhase('complete');
-        setMessages([{
-          id: 'initial',
-          role: 'agent',
-          content: `Hello! I'm an AI agent trained on Alice Chen's documented knowledge about the credit loss overlay process. I can help answer questions about thresholds, approval workflows, and decision criteria. How can I help you today?`,
-          timestamp: Date.now(),
-        }]);
-      }, 4000); // Show celebration for 4 seconds
+        setStep(5);
+      }, 4000); // Show celebration for 4 seconds, then move to CompleteStep
       return () => clearTimeout(timer);
     }
-  }, [showCelebration]);
+  }, [showCelebration, setStep]);
 
   const handleAction = (action: ReviewAction) => {
     if (action === 'context') {
@@ -683,12 +679,12 @@ export default function HandoffPage() {
       if ((userInput.includes('write') || userInput.includes('add')) && userInput.includes('section') && (userInput.includes('relationship') || userInput.includes('artifact'))) {
         const newSection = {
           heading: 'Artifact Relationships',
-          content: `• Q3_Loss_Forecast.xlsx: Contains model predictions with documented overlay adjustments in cells D14:D18
-• loss_model.py: Generates base loss predictions with overlay decision logic now implemented
-• Escalation_Policy.md: Documents approval workflows and thresholds for all adjustment sizes
-• threshold_config.py: Defines segment thresholds and escalation rules referenced by the model
+          content: `\u2022 Q3_Loss_Forecast.xlsx: Contains model predictions with documented overlay adjustments in cells D14:D18
+\u2022 loss_model.py: Generates base loss predictions with overlay decision logic now implemented
+\u2022 Escalation_Policy.md: Documents approval workflows and thresholds for all adjustment sizes
+\u2022 threshold_config.py: Defines segment thresholds and escalation rules referenced by the model
 
-Data flows from model output → Excel adjustments → policy documentation. All overlays must reference the escalation policy for approval requirements.`,
+Data flows from model output \u2192 Excel adjustments \u2192 policy documentation. All overlays must reference the escalation policy for approval requirements.`,
         };
         setMemoSections(prev => [...prev, newSection]);
         response = "Section added! Let me know if you want further changes.";
@@ -698,7 +694,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
         const updatedSections = [...memoSections];
         updatedSections[3] = {
           ...updatedSections[3],
-          content: updatedSections[3].content + '\n\nContact Information:\n• Alice Chen: alice.chen@company.com (available for questions until end of month)\n• Marcus Thompson: marcus.t@company.com, ext. 4589',
+          content: updatedSections[3].content + '\n\nContact Information:\n\u2022 Alice Chen: alice.chen@company.com (available for questions until end of month)\n\u2022 Marcus Thompson: marcus.t@company.com, ext. 4589',
         };
         setMemoSections(updatedSections);
         response = "Done! I've added contact information to the Backup & Escalation section. The memo now includes email addresses for both Alice and Marcus.";
@@ -772,26 +768,26 @@ Data flows from model output → Excel adjustments → policy documentation. All
   };
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-full bg-gg-bg flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+      <header className="bg-gg-card border-b border-gg-border px-6 py-4 flex-shrink-0">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gg-rust flex items-center justify-center">
               <span className="text-white font-semibold">B</span>
             </div>
             <div>
-              <h1 className="font-semibold text-gray-900">Bridge AI</h1>
-              <p className="text-sm text-gray-500">Knowledge Handoff</p>
+              <h1 className="font-semibold text-gg-text">Bridge AI</h1>
+              <p className="text-sm text-gg-secondary">Knowledge Handoff</p>
             </div>
           </div>
 
           {/* Progress indicator */}
           <div className="flex items-center gap-6">
             <StepIndicator step={1} label="Documents" isActive={phase === 'documents'} isComplete={phase !== 'documents'} />
-            <div className="w-8 h-px bg-gray-300" />
+            <div className="w-8 h-px bg-gg-border" />
             <StepIndicator step={2} label="Memo" isActive={phase === 'memo'} isComplete={phase === 'agent' || phase === 'complete'} />
-            <div className="w-8 h-px bg-gray-300" />
+            <div className="w-8 h-px bg-gg-border" />
             <StepIndicator step={3} label="Agent" isActive={phase === 'agent' || phase === 'complete'} isComplete={phase === 'complete'} />
           </div>
         </div>
@@ -802,23 +798,23 @@ Data flows from model output → Excel adjustments → policy documentation. All
         {phase === 'documents' && (
           <div className="animate-fadeIn h-full flex flex-col">
             <div className="mb-4 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
+              <h2 className="text-xl font-bold text-gg-text mb-2">
                 Review Proposed Document Changes
               </h2>
-              <p className="text-gray-600 text-sm">
+              <p className="text-gg-secondary text-sm">
                 Based on your captured knowledge, Bridge AI proposes the following documentation enhancements.
               </p>
             </div>
 
             {/* Progress bar */}
             <div className="mb-4 flex-shrink-0">
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+              <div className="flex items-center justify-between text-sm text-gg-secondary mb-2">
                 <span>Reviewing change {currentChangeIndex + 1} of {changes.length}</span>
                 <span>{acceptedCount} accepted</span>
               </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-2 bg-gg-border rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-300"
+                  className="h-full bg-gg-accent transition-all duration-300"
                   style={{ width: `${((currentChangeIndex + (allChangesReviewed ? 1 : 0)) / changes.length) * 100}%` }}
                 />
               </div>
@@ -826,14 +822,14 @@ Data flows from model output → Excel adjustments → policy documentation. All
 
             {/* Revising state - AI thinking */}
             {isRevising && (
-              <div className="bg-white rounded-xl border border-gray-200 p-8">
+              <div className="bg-gg-card rounded-xl border border-gg-border p-8">
                 <div className="flex items-center justify-center gap-4">
                   <div className="relative">
-                    <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
+                    <div className="w-12 h-12 rounded-full border-4 border-gg-accent/30 border-t-gg-accent animate-spin"></div>
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900">Revising proposal...</p>
-                    <p className="text-sm text-gray-500">Incorporating your additional context</p>
+                    <p className="font-semibold text-gg-text">Revising proposal...</p>
+                    <p className="text-sm text-gg-secondary">Incorporating your additional context</p>
                   </div>
                 </div>
               </div>
@@ -841,37 +837,37 @@ Data flows from model output → Excel adjustments → policy documentation. All
 
             {/* Current change card */}
             {!allChangesReviewed && currentChange && !isRevising && (
-              <div className={`bg-white rounded-xl border overflow-hidden flex flex-col flex-1 min-h-0 ${currentChange.additionalContext ? 'border-blue-300 border-2' : 'border-gray-200'}`}>
+              <div className={`bg-gg-card rounded-xl border overflow-hidden flex flex-col flex-1 min-h-0 ${currentChange.additionalContext ? 'border-gg-accent border-2' : 'border-gg-border'}`}>
                 {/* Change header */}
-                <div className={`px-6 py-4 border-b flex items-center justify-between ${currentChange.additionalContext ? 'bg-blue-50 border-blue-200' : 'border-gray-100'}`}>
+                <div className={`px-6 py-4 border-b flex items-center justify-between ${currentChange.additionalContext ? 'bg-gg-accent/10 border-gg-accent/20' : 'border-gg-border'}`}>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{currentChange.fileIcon}</span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{currentChange.fileName}</h3>
+                        <h3 className="font-semibold text-gg-text">{currentChange.fileName}</h3>
                         {currentChange.additionalContext && (
-                          <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">
+                          <span className="px-2 py-0.5 bg-gg-accent text-white text-xs font-medium rounded-full">
                             Revised
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">{currentChange.location}</p>
+                      <p className="text-sm text-gg-secondary">{currentChange.location}</p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-amber-100 text-amber-700 text-sm font-medium rounded-full">
+                  <span className="px-3 py-1 bg-amber-900/30 text-amber-400 text-sm font-medium rounded-full">
                     {currentChange.issue}
                   </span>
                 </div>
 
                 {/* Diff view */}
-                <div className="grid grid-cols-2 divide-x divide-gray-200 flex-1 min-h-0 overflow-hidden">
+                <div className="grid grid-cols-2 divide-x divide-gg-border flex-1 min-h-0 overflow-hidden">
                   {/* Current */}
                   <div className="p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="w-3 h-3 rounded-full bg-red-400"></span>
-                      <span className="text-sm font-medium text-gray-700">Current</span>
+                      <span className="text-sm font-medium text-gg-secondary">Current</span>
                     </div>
-                    <pre className="text-xs bg-red-50 border border-red-200 rounded-lg p-4 whitespace-pre-wrap text-gray-800 font-mono">
+                    <pre className="text-xs bg-red-900/20 border border-red-500/20 rounded-lg p-4 whitespace-pre-wrap text-red-300 font-mono">
                       {currentChange.currentCode}
                     </pre>
                   </div>
@@ -880,29 +876,29 @@ Data flows from model output → Excel adjustments → policy documentation. All
                   <div className="p-4 overflow-hidden">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="w-3 h-3 rounded-full bg-green-400"></span>
-                      <span className="text-sm font-medium text-gray-700">Proposed</span>
+                      <span className="text-sm font-medium text-gg-secondary">Proposed</span>
                     </div>
-                    <pre className="text-xs bg-green-50 border border-green-200 rounded-lg p-4 whitespace-pre-wrap text-gray-800 font-mono overflow-auto max-h-full">
+                    <pre className="text-xs bg-green-900/20 border border-green-500/20 rounded-lg p-4 whitespace-pre-wrap text-green-300 font-mono overflow-auto max-h-full">
                       {currentChange.proposedCode}
                     </pre>
                   </div>
                 </div>
 
                 {/* Rationale */}
-                <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
+                <div className="px-6 py-4 bg-gg-accent/10 border-t border-gg-accent/20">
                   <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-gg-accent-light flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <div>
-                      <p className="text-sm font-medium text-blue-900">Why this change?</p>
-                      <p className="text-sm text-blue-700 mt-1">{currentChange.rationale}</p>
+                      <p className="text-sm font-medium text-gg-accent-light">Why this change?</p>
+                      <p className="text-sm text-gg-accent-light/80 mt-1">{currentChange.rationale}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="px-6 py-4 border-t border-gray-100">
+                <div className="px-6 py-4 border-t border-gg-border">
                   {!showContextInput ? (
                     <div className="flex items-center gap-3">
                       <button
@@ -916,7 +912,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                       </button>
                       <button
                         onClick={() => handleAction('declined')}
-                        className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-gg-surface text-gg-secondary font-medium rounded-lg hover:bg-gg-card transition-colors flex items-center justify-center gap-2"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -925,7 +921,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                       </button>
                       <button
                         onClick={() => handleAction('context')}
-                        className="flex-1 px-4 py-2.5 bg-blue-100 text-blue-700 font-medium rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 px-4 py-2.5 bg-gg-accent/10 text-gg-accent-light font-medium rounded-lg hover:bg-gg-accent/20 transition-colors flex items-center justify-center gap-2"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
@@ -935,7 +931,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <label className="text-sm font-medium text-gray-700">
+                      <label className="text-sm font-medium text-gg-secondary">
                         What additional context should be included?
                       </label>
                       <textarea
@@ -943,7 +939,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                         value={contextInput}
                         onChange={(e) => setContextInput(e.target.value)}
                         onKeyDown={handleContextKeyDown}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-3 bg-gg-surface border border-gg-border rounded-lg text-sm text-gg-text focus:outline-none focus:ring-2 focus:ring-gg-accent focus:ring-offset-gg-bg"
                         rows={3}
                         placeholder="Add details the AI might have missed..."
                         autoFocus
@@ -952,7 +948,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                         <button
                           onClick={handleSubmitContext}
                           disabled={!contextInput.trim()}
-                          className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          className="px-4 py-2 bg-gg-accent text-white font-medium rounded-lg hover:bg-gg-accent/90 disabled:opacity-50 transition-colors"
                         >
                           Submit
                         </button>
@@ -962,7 +958,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                             setContextInput('');
                             contextCharIndexRef.current = 0;
                           }}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                          className="px-4 py-2 bg-gg-surface text-gg-secondary font-medium rounded-lg hover:bg-gg-card transition-colors"
                         >
                           Cancel
                         </button>
@@ -975,16 +971,16 @@ Data flows from model output → Excel adjustments → policy documentation. All
 
             {/* All reviewed - show summary */}
             {allChangesReviewed && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="bg-gg-card rounded-xl border border-gg-border p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-10 h-10 rounded-full bg-green-900/30 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">Review Complete</h3>
-                    <p className="text-sm text-gray-500">
+                    <h3 className="font-semibold text-gg-text">Review Complete</h3>
+                    <p className="text-sm text-gg-secondary">
                       {acceptedCount} of {changes.length} changes accepted
                     </p>
                   </div>
@@ -992,16 +988,16 @@ Data flows from model output → Excel adjustments → policy documentation. All
 
                 <div className="space-y-2 mb-6">
                   {changes.map((change) => (
-                    <div key={change.id} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                    <div key={change.id} className="flex items-center justify-between py-2 px-3 bg-gg-surface rounded-lg">
                       <div className="flex items-center gap-2">
                         <span>{change.fileIcon}</span>
-                        <span className="text-sm text-gray-700">{change.fileName}</span>
-                        <span className="text-xs text-gray-400">({change.location})</span>
+                        <span className="text-sm text-gg-text">{change.fileName}</span>
+                        <span className="text-xs text-gg-muted">({change.location})</span>
                       </div>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                        change.status === 'accepted' ? 'bg-green-100 text-green-700' :
-                        change.status === 'declined' ? 'bg-gray-100 text-gray-600' :
-                        'bg-blue-100 text-blue-700'
+                        change.status === 'accepted' ? 'bg-green-900/30 text-green-400' :
+                        change.status === 'declined' ? 'bg-gg-surface text-gg-muted' :
+                        'bg-gg-accent/10 text-gg-accent-light'
                       }`}>
                         {change.status === 'accepted' ? 'Accepted' :
                          change.status === 'declined' ? 'Declined' : 'Context Added'}
@@ -1012,7 +1008,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
 
                 <button
                   onClick={handleContinueToMemo}
-                  className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  className="w-full px-4 py-3 bg-gg-accent text-white font-medium rounded-lg hover:bg-gg-accent/90 transition-colors"
                 >
                   Continue to Memo Generation
                 </button>
@@ -1027,21 +1023,21 @@ Data flows from model output → Excel adjustments → policy documentation. All
             {/* Loading state */}
             {!memoGenerated && (
               <div className="flex-1 flex items-center justify-center">
-                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-md">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="bg-gg-card rounded-xl border border-gg-border p-8 text-center max-w-md">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gg-accent/20 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gg-accent-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">Generating Knowledge Memo</h2>
-                  <p className="text-gray-600 mb-6">Creating comprehensive workflow documentation...</p>
-                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+                  <h2 className="text-xl font-bold text-gg-text mb-2">Generating Knowledge Memo</h2>
+                  <p className="text-gg-secondary mb-6">Creating comprehensive workflow documentation...</p>
+                  <div className="h-3 bg-gg-border rounded-full overflow-hidden mb-2">
                     <div
-                      className="h-full bg-blue-600 transition-all duration-100 rounded-full"
+                      className="h-full bg-gg-accent transition-all duration-100 rounded-full"
                       style={{ width: `${memoProgress}%` }}
                     />
                   </div>
-                  <p className="text-sm text-gray-400">{memoProgress}% complete</p>
+                  <p className="text-sm text-gg-muted">{memoProgress}% complete</p>
                 </div>
               </div>
             )}
@@ -1052,22 +1048,22 @@ Data flows from model output → Excel adjustments → policy documentation. All
                 {/* Left: Memo Preview */}
                 <div className="flex-1 flex flex-col min-h-0">
                   <div className="mb-4 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-gray-900 mb-1">Review Knowledge Memo</h2>
-                    <p className="text-gray-600 text-sm">Click on any section to edit directly, or use the chat to request changes.</p>
+                    <h2 className="text-xl font-bold text-gg-text mb-1">Review Knowledge Memo</h2>
+                    <p className="text-gg-secondary text-sm">Click on any section to edit directly, or use the chat to request changes.</p>
                   </div>
 
-                  <div className="bg-white rounded-xl border border-gray-200 flex-1 min-h-0 overflow-auto">
+                  <div className="bg-gg-card rounded-xl border border-gg-border flex-1 min-h-0 overflow-auto">
                     {/* Memo Header */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                    <div className="px-6 py-4 border-b border-gg-border bg-gg-surface">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="w-10 h-10 rounded-lg bg-gg-accent/20 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gg-accent-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900">{GENERATED_MEMO.title}</h3>
-                          <p className="text-sm text-gray-500">Knowledge Transfer Document</p>
+                          <h3 className="font-semibold text-gg-text">{GENERATED_MEMO.title}</h3>
+                          <p className="text-sm text-gg-secondary">Knowledge Transfer Document</p>
                         </div>
                       </div>
                     </div>
@@ -1076,12 +1072,12 @@ Data flows from model output → Excel adjustments → policy documentation. All
                     <div className="p-6 space-y-6">
                       {memoSections.map((section, index) => (
                         <div key={index} className="group">
-                          <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                          <h4 className="font-semibold text-gg-text mb-2 flex items-center gap-2">
                             {section.heading}
                             {editingSectionIndex !== index && (
                               <button
                                 onClick={() => setEditingSectionIndex(index)}
-                                className="opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-700 transition-opacity"
+                                className="opacity-0 group-hover:opacity-100 text-gg-accent-light hover:text-gg-accent transition-opacity"
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -1094,18 +1090,18 @@ Data flows from model output → Excel adjustments → policy documentation. All
                               <textarea
                                 value={section.content}
                                 onChange={(e) => handleSectionEdit(index, e.target.value)}
-                                className="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+                                className="w-full px-3 py-2 bg-gg-surface border border-gg-accent rounded-lg text-sm text-gg-text focus:outline-none focus:ring-2 focus:ring-gg-accent min-h-[100px]"
                                 autoFocus
                               />
                               <button
                                 onClick={() => setEditingSectionIndex(null)}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                                className="px-3 py-1.5 bg-gg-accent text-white text-sm font-medium rounded-lg hover:bg-gg-accent/90 transition-colors"
                               >
                                 Done
                               </button>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-600 whitespace-pre-line cursor-pointer hover:bg-blue-50 rounded-lg p-2 -m-2 transition-colors" onClick={() => setEditingSectionIndex(index)}>
+                            <p className="text-sm text-gg-secondary whitespace-pre-line cursor-pointer hover:bg-gg-surface rounded-lg p-2 -m-2 transition-colors" onClick={() => setEditingSectionIndex(index)}>
                               {section.content}
                             </p>
                           )}
@@ -1118,7 +1114,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                   <div className="mt-4 flex-shrink-0">
                     <button
                       onClick={handleContinueToAgent}
-                      className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      className="w-full px-4 py-3 bg-gg-accent text-white font-medium rounded-lg hover:bg-gg-accent/90 transition-colors"
                     >
                       Approve Memo & Continue to Agent
                     </button>
@@ -1126,10 +1122,10 @@ Data flows from model output → Excel adjustments → policy documentation. All
                 </div>
 
                 {/* Right: Chat Panel */}
-                <div className="w-80 flex flex-col min-h-0 bg-white rounded-xl border border-gray-200">
-                  <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
-                    <h3 className="font-semibold text-gray-900 text-sm">Chat with Bridge AI</h3>
-                    <p className="text-xs text-gray-500">Ask for edits or clarifications</p>
+                <div className="w-80 flex flex-col min-h-0 bg-gg-card rounded-xl border border-gg-border">
+                  <div className="px-4 py-3 border-b border-gg-border flex-shrink-0">
+                    <h3 className="font-semibold text-gg-text text-sm">Chat with Bridge AI</h3>
+                    <p className="text-xs text-gg-secondary">Ask for edits or clarifications</p>
                   </div>
 
                   {/* Messages */}
@@ -1142,8 +1138,8 @@ Data flows from model output → Excel adjustments → policy documentation. All
                         <div
                           className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
                             msg.role === 'user'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-gg-accent text-white'
+                              : 'bg-gg-surface text-gg-text'
                           }`}
                         >
                           {msg.content}
@@ -1152,11 +1148,11 @@ Data flows from model output → Excel adjustments → policy documentation. All
                     ))}
                     {isMemoTyping && (
                       <div className="flex justify-start">
-                        <div className="bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm">
+                        <div className="bg-gg-surface text-gg-text px-3 py-2 rounded-lg text-sm">
                           <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                            <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                            <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
                           </span>
                         </div>
                       </div>
@@ -1165,7 +1161,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                   </div>
 
                   {/* Input */}
-                  <div className="p-3 border-t border-gray-100 flex-shrink-0">
+                  <div className="p-3 border-t border-gg-border flex-shrink-0">
                     <div className="flex gap-2">
                       <input
                         ref={memoInputRef}
@@ -1174,12 +1170,12 @@ Data flows from model output → Excel adjustments → policy documentation. All
                         onChange={(e) => setMemoInput(e.target.value)}
                         onKeyDown={handleMemoKeyDown}
                         placeholder="Ask for changes..."
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 px-3 py-2 bg-gg-surface border border-gg-border rounded-lg text-sm text-gg-text focus:outline-none focus:ring-2 focus:ring-gg-accent"
                       />
                       <button
                         onClick={handleMemoSendMessage}
                         disabled={!memoInput.trim() || isMemoTyping}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        className="px-3 py-2 bg-gg-accent text-white rounded-lg hover:bg-gg-accent/90 disabled:opacity-50 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -1198,21 +1194,21 @@ Data flows from model output → Excel adjustments → policy documentation. All
           <div className="animate-fadeIn h-full flex flex-col">
             {!showCelebration ? (
               <div className="flex-1 flex items-center justify-center">
-                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-md">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="bg-gg-card rounded-xl border border-gg-border p-8 text-center max-w-md">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gg-rust/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gg-rust-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">Creating Knowledge Agent</h2>
-                <p className="text-gray-600 mb-6">Training AI on Alice's documented expertise...</p>
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-2">
+                <h2 className="text-xl font-bold text-gg-text mb-2">Creating Knowledge Agent</h2>
+                <p className="text-gg-secondary mb-6">Training AI on Alice's documented expertise...</p>
+                <div className="h-3 bg-gg-border rounded-full overflow-hidden mb-2">
                   <div
-                    className="h-full bg-purple-600 transition-all duration-100 rounded-full"
+                    className="h-full bg-gg-rust transition-all duration-100 rounded-full"
                     style={{ width: `${agentProgress}%` }}
                   />
                 </div>
-                <p className="text-sm text-gray-400">{agentProgress}% complete</p>
+                <p className="text-sm text-gg-muted">{agentProgress}% complete</p>
                 </div>
               </div>
             ) : (
@@ -1234,7 +1230,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                       <div
                         className="w-3 h-3 rounded-full"
                         style={{
-                          backgroundColor: ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'][Math.floor(Math.random() * 6)],
+                          backgroundColor: ['#D4A843', '#C0362C', '#10B981', '#E5C06E', '#D4564C', '#F59E0B'][Math.floor(Math.random() * 6)],
                         }}
                       />
                     </div>
@@ -1246,7 +1242,7 @@ Data flows from model output → Excel adjustments → policy documentation. All
                   {/* Animated checkmark with glow */}
                   <div className="relative w-24 h-24 mx-auto mb-6">
                     <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-25"></div>
-                    <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-200">
+                    <div className="relative w-24 h-24 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-900/30">
                       <svg className="w-12 h-12 text-white animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
@@ -1254,223 +1250,48 @@ Data flows from model output → Excel adjustments → policy documentation. All
                   </div>
 
                   {/* Celebration text */}
-                  <h1 className="text-3xl font-bold text-gray-900 mb-3">
+                  <h1 className="text-3xl font-bold text-gg-text mb-3">
                     You're all set, Alice! 🎉
                   </h1>
 
-                  <p className="text-lg text-gray-600 mb-6 max-w-md mx-auto">
+                  <p className="text-lg text-gg-secondary mb-6 max-w-md mx-auto">
                     Your knowledge has been captured and preserved for the team.
                   </p>
 
                   {/* Stats cards */}
                   <div className="flex justify-center gap-4 mb-8">
-                    <div className="bg-white rounded-xl border border-gray-200 px-6 py-4 shadow-sm">
-                      <div className="text-2xl font-bold text-blue-600">{acceptedCount}</div>
-                      <div className="text-sm text-gray-500">Docs Enhanced</div>
+                    <div className="bg-gg-card rounded-xl border border-gg-border px-6 py-4 shadow-sm">
+                      <div className="text-2xl font-bold text-gg-accent-light">{acceptedCount}</div>
+                      <div className="text-sm text-gg-secondary">Docs Enhanced</div>
                     </div>
-                    <div className="bg-white rounded-xl border border-gray-200 px-6 py-4 shadow-sm">
-                      <div className="text-2xl font-bold text-purple-600">1</div>
-                      <div className="text-sm text-gray-500">AI Agent Created</div>
+                    <div className="bg-gg-card rounded-xl border border-gg-border px-6 py-4 shadow-sm">
+                      <div className="text-2xl font-bold text-gg-rust-light">1</div>
+                      <div className="text-sm text-gg-secondary">AI Agent Created</div>
                     </div>
-                    <div className="bg-white rounded-xl border border-gray-200 px-6 py-4 shadow-sm">
-                      <div className="text-2xl font-bold text-green-600">{memoSections.length}</div>
-                      <div className="text-sm text-gray-500">Memo Sections</div>
+                    <div className="bg-gg-card rounded-xl border border-gg-border px-6 py-4 shadow-sm">
+                      <div className="text-2xl font-bold text-green-400">{memoSections.length}</div>
+                      <div className="text-sm text-gg-secondary">Memo Sections</div>
                     </div>
                   </div>
 
                   {/* Thank you message */}
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 max-w-lg mx-auto border border-purple-100">
-                    <p className="text-gray-700 leading-relaxed">
+                  <div className="bg-gg-rust/10 rounded-xl p-6 max-w-lg mx-auto border border-gg-rust/20">
+                    <p className="text-gg-secondary leading-relaxed">
                       Thank you for your dedication and all your contributions to the Risk Analytics team.
                       Your expertise will continue to guide your colleagues through your AI agent.
                     </p>
-                    <p className="text-purple-600 font-medium mt-3">
+                    <p className="text-gg-accent font-medium mt-3">
                       Best wishes on your next adventure! 🚀
                     </p>
                   </div>
 
                   {/* Loading indicator for transition */}
-                  <p className="text-sm text-gray-400 mt-6 animate-pulse">
+                  <p className="text-sm text-gg-muted mt-6 animate-pulse">
                     Preparing your deliverables...
                   </p>
                 </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Complete Phase */}
-        {phase === 'complete' && (
-          <div className="animate-fadeIn h-full">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-              {/* Left Column - Deliverables */}
-              <div className="flex flex-col gap-4 h-full min-h-0">
-                {/* Accepted Changes Summary */}
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Enhanced Documents</h3>
-                      <p className="text-sm text-gray-500">{enhancedDocCount} documents updated</p>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-100 flex-1 overflow-y-auto">
-                    {Object.entries(groupedByDoc).map(([docName, { icon, changes: docChanges }]) => (
-                      <div key={docName}>
-                        <button
-                          onClick={() => toggleDocExpand(docName)}
-                          className="w-full px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
-                        >
-                          <span className="text-lg">{icon}</span>
-                          <div className="flex-1 min-w-0 text-left">
-                            <p className="font-medium text-gray-900 text-sm">{docName}</p>
-                            <p className="text-xs text-gray-500">{docChanges.length} change{docChanges.length > 1 ? 's' : ''}</p>
-                          </div>
-                          <svg
-                            className={`w-4 h-4 text-gray-400 transition-transform ${expandedDocs.has(docName) ? 'rotate-180' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        {expandedDocs.has(docName) && (
-                          <div className="bg-gray-50 border-t border-gray-100">
-                            {docChanges.map((change) => (
-                              <div key={change.id} className="px-5 py-2 pl-14 border-b border-gray-100 last:border-b-0">
-                                <p className="text-xs text-gray-600">{change.location}</p>
-                                <p className="text-xs text-gray-500 mt-0.5">{change.issue}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Generated Memo */}
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col flex-1 min-h-0">
-                  <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3 flex-shrink-0">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Knowledge Transfer Memo</h3>
-                      <p className="text-sm text-gray-500">{memoSections.length} sections</p>
-                    </div>
-                  </div>
-                  <div className="px-5 py-4 flex-1 overflow-y-auto">
-                    <h4 className="font-semibold text-gray-900 text-sm mb-3">{GENERATED_MEMO.title}</h4>
-                    {memoSections.map((section, i) => (
-                      <div key={i} className="mb-4 last:mb-0">
-                        <p className="font-medium text-gray-700 text-xs uppercase tracking-wide mb-1">
-                          {section.heading}
-                        </p>
-                        <p className="text-sm text-gray-600 whitespace-pre-line">{section.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex-shrink-0">
-                    <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                      Download PDF
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Column - Agent Chat */}
-              <div className="bg-white rounded-xl border border-gray-200 flex flex-col h-full min-h-0">
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                    <span className="text-white font-semibold text-sm">{ALICE_CHEN.initials}</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">Alice's Knowledge Agent</h3>
-                    <p className="text-sm text-gray-500">Ask questions about her processes</p>
-                  </div>
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span className="text-xs text-gray-500">Online</span>
-                  </div>
-                </div>
-
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-                  {messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                          msg.role === 'user'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-900'
-                        }`}
-                      >
-                        {msg.role === 'agent' ? renderMessageWithSources(msg.content) : (
-                          <p className="text-sm whitespace-pre-line">{msg.content}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {isTyping && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 rounded-2xl px-4 py-2.5">
-                        <div className="flex gap-1">
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Input */}
-                <div className="px-4 py-3 border-t border-gray-100">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
-                      onKeyDown={handleAgentKeyDown}
-                      placeholder="Ask about Alice's processes..."
-                      className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      disabled={!inputValue.trim() || isTyping}
-                      className="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {['When should I apply an overlay?', 'How do approvals work?', "Who's the backup?"].map((q) => (
-                      <button
-                        key={q}
-                        onClick={() => setInputValue(q)}
-                        className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </main>
@@ -1488,9 +1309,9 @@ function StepIndicator({ step, label, isActive, isComplete }: {
   return (
     <div className="flex items-center gap-2">
       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium ${
-        isComplete ? 'bg-green-100 text-green-600' :
-        isActive ? 'bg-blue-600 text-white' :
-        'bg-gray-100 text-gray-400'
+        isComplete ? 'bg-green-900/30 text-green-400' :
+        isActive ? 'bg-gg-accent text-white' :
+        'bg-gg-surface text-gg-muted'
       }`}>
         {isComplete ? (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1498,7 +1319,7 @@ function StepIndicator({ step, label, isActive, isComplete }: {
           </svg>
         ) : step}
       </div>
-      <span className={`text-sm ${isActive || isComplete ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+      <span className={`text-sm ${isActive || isComplete ? 'text-gg-text font-medium' : 'text-gg-muted'}`}>
         {label}
       </span>
     </div>

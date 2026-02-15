@@ -148,7 +148,7 @@ All calls use the same LLM service (`backend/services/llm.py`), configured in `b
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `LLM_MODEL` | `gpt-4o` | Model for all analysis |
+| `LLM_MODEL` | `gpt-5.2` | Model for all analysis |
 | `LLM_TEMPERATURE` | `0.2` | Low temperature for consistency |
 | `LLM_MAX_TOKENS` | `4096` | Token budget per call |
 | `MAX_QUESTIONS_PER_FILE` | `5` | Questions capped per pass |

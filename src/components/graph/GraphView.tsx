@@ -11,29 +11,28 @@ import ReactFlow, {
     Handle,
     Position,
     NodeProps,
-    useReactFlow,
     MarkerType,
   } from "reactflow";
   import "reactflow/dist/style.css";
-  import dagre from "dagre";
-  
+  import { colorForType, layoutDagre, nodeWidth, nodeHeight, KG, KGNode } from "./shared";
+
 
   function KGNodeView({ data }: NodeProps) {
     const raw = (data as any)?.__raw;
     const color = raw ? colorForType(raw.type) : "#9ca3af";
-  
+
     const bg = `${color}22`;
-  
+
     return (
       <div
         style={{
           width: nodeWidth,
           height: nodeHeight,
           borderRadius: 14,
-          background: bg, 
+          background: bg,
           border: "1px solid rgba(0,0,0,0.10)",
           boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          borderLeft: `14px solid ${color}`, 
+          borderLeft: `14px solid ${color}`,
           padding: 10,
           cursor: "pointer",
           display: "flex",
@@ -44,7 +43,7 @@ import ReactFlow, {
         <div style={{ pointerEvents: "none", fontWeight: 800, color, marginBottom: 4, textTransform: "lowercase" }}>
           {raw?.type ?? ""}
         </div>
-  
+
         <div
           style={{
             whiteSpace: "pre-wrap",
@@ -56,105 +55,12 @@ import ReactFlow, {
         >
           {(data as any)?.label}
         </div>
-  
+
         <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
         <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
       </div>
     );
   }
-  
-  
-
-/** ---- Types that match your kg.json ---- */
-type Evidence = {
-  source_type: "file" | "interview" | "ticket" | "email" | "other";
-  source_id: string;
-  path: string;
-  snippet_hash: string;
-  quote: string;
-};
-
-type KGNode = {
-  id: string;
-  type: string;
-  name: string;
-  evidence: Evidence[];
-  // optional if you have it
-  attrs?: { k: string; v: string }[];
-};
-
-type KGEdge = {
-  source: string;
-  type: string;
-  target: string;
-  evidence: Evidence[];
-  attrs?: { k: string; v: string }[];
-};
-
-type KG = {
-  nodes: KGNode[];
-  edges: KGEdge[];
-};
-
-/** ---- Styling helpers ---- */
-function colorForType(t: string) {
-    const key = (t || "").toLowerCase();
-    const m: Record<string, string> = {
-      project: "#2563eb",
-      module: "#06b6d4",
-      process: "#10b981",
-      runbook: "#22c55e",
-      runbookstep: "#86efac",
-      decisionrule: "#a855f7",
-      decision: "#a855f7",      
-      risk: "#f97316",
-      mitigation: "#16a34a",
-      person: "#64748b",
-      document: "#94a3b8",
-      operationalartifact: "#f59e0b",
-      component: "#06b6d4",     
-      threshold: "#f97316",     
-      role: "#64748b",          
-    };
-    return m[key] ?? "#9ca3af";
-  }
-
-function labelForNode(n: KGNode) {
-  return `${n.name}`;
-}
-
-/** ---- Dagre layout ---- */
-const nodeWidth = 240;
-const nodeHeight = 90;
-
-function layoutDagre(nodes: Node[], edges: Edge[], direction: "LR" | "TB" = "LR") {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, ranksep: 70, nodesep: 40 });
-
-  nodes.forEach((n) => {
-    g.setNode(n.id, { width: nodeWidth, height: nodeHeight });
-  });
-
-  edges.forEach((e) => {
-    g.setEdge(e.source, e.target);
-  });
-
-  dagre.layout(g);
-
-  const laidOut = nodes.map((n) => {
-    const p = g.node(n.id);
-    return {
-      ...n,
-      position: { x: p.x - nodeWidth / 2, y: p.y - nodeHeight / 2 },
-      // Helps React Flow avoid jitter
-      targetPosition: direction === "LR" ? "left" : "top",
-      sourcePosition: direction === "LR" ? "right" : "bottom",
-    };
-  });
-
-  return { nodes: laidOut, edges };
-}
 
 /** ---- Component ---- */
 export default function GraphView() {
@@ -207,7 +113,7 @@ export default function GraphView() {
       id: n.id,
       type: "kgNode",
       data: {
-        label: labelForNode(n),
+        label: n.name,
         __raw: n, // keep original node for click panel
       },
       position: { x: 0, y: 0 }
@@ -220,7 +126,7 @@ export default function GraphView() {
         label: e.type,
         animated: false,
         style: { opacity: 0.7 },
-        markerEnd: { type: MarkerType.ArrowClosed }, // ✅ 箭头
+        markerEnd: { type: MarkerType.ArrowClosed },
         data: { __raw: e },
     }));
 
@@ -265,8 +171,8 @@ export default function GraphView() {
           </label>
 
           <select value={direction} onChange={(e) => setDirection(e.target.value as any)}>
-            <option value="LR">Left → Right</option>
-            <option value="TB">Top → Bottom</option>
+            <option value="LR">Left &rarr; Right</option>
+            <option value="TB">Top &darr; Bottom</option>
           </select>
         </div>
 
@@ -276,25 +182,20 @@ export default function GraphView() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           fitView
-        //   onNodeClick={(_, n) => {
-        //     const raw = (n.data as any)?.__raw as KGNode | undefined;
-        //     if (raw) setSelected(raw);
-        //   }}
         onNodeClick={(_, n) => {
             const raw = (n.data as any)?.__raw as KGNode | undefined;
             if (raw) setSelected(raw);
-          
-            // 1-hop 子图节点集合
+
             const neighborIds = new Set<string>();
             neighborIds.add(n.id);
-          
+
             edges.forEach((e) => {
               if (e.source === n.id) neighborIds.add(e.target);
               if (e.target === n.id) neighborIds.add(e.source);
             });
-          
+
             const focusNodes = nodes.filter((nd) => neighborIds.has(nd.id));
-          
+
             rf?.fitView({
               nodes: focusNodes,
               padding: 0.35,
@@ -337,9 +238,6 @@ export default function GraphView() {
               <div style={{ fontSize: 13 }}>
                 <b>id:</b> {selected.id}
               </div>
-              {/* <div style={{ fontSize: 13 }}>
-                <b>confidence:</b> {selected.confidence?.toFixed?.(2) ?? selected.confidence}
-              </div> */}
             </div>
 
             <div>

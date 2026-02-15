@@ -48,7 +48,7 @@ function EmployeeHeader({ employee }: { employee: Employee }) {
   return (
     <div className="p-4 border-b border-gray-200">
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
+        <div className="w-12 h-12 rounded-full bg-gg-rust flex items-center justify-center text-white font-semibold text-lg">
           {employee.initials}
         </div>
         <div>

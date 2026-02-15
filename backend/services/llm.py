@@ -40,7 +40,7 @@ async def call_llm(
     *,
     model: str | None = None,
     temperature: float | None = None,
-    max_tokens: int | None = None,
+    max_completion_tokens: int | None = None,
 ) -> str:
     """Send a chat completion request and return the text response.
 
@@ -49,7 +49,7 @@ async def call_llm(
         user_prompt:   The user message with the actual content.
         model:         Override the default model from settings.
         temperature:   Override the default temperature.
-        max_tokens:    Override the default max_tokens.
+        max_completion_tokens: Override the default max_completion_tokens.
 
     Returns:
         The assistant's response as a string.
@@ -58,7 +58,7 @@ async def call_llm(
     response = await client.chat.completions.create(
         model=model or settings.LLM_MODEL,
         temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+        max_completion_tokens=max_completion_tokens or settings.LLM_MAX_TOKENS,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -73,7 +73,7 @@ async def call_llm_json(
     *,
     model: str | None = None,
     temperature: float | None = None,
-    max_tokens: int | None = None,
+    max_completion_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Call the LLM and parse the response as JSON.
 
@@ -85,7 +85,7 @@ async def call_llm_json(
     response = await client.chat.completions.create(
         model=model or settings.LLM_MODEL,
         temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+        max_completion_tokens=max_completion_tokens or settings.LLM_MAX_TOKENS,
         response_format={"type": "json_object"},
         messages=[
             {"role": "system", "content": system_prompt},

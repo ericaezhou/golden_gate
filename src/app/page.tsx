@@ -1,249 +1,118 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { FileIcon, getFileExt } from './components/FileIcon'
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-const extBadgeColors: Record<string, string> = {
-  xlsx: 'bg-green-100 text-green-700',
-  xls: 'bg-green-100 text-green-700',
-  csv: 'bg-green-100 text-green-700',
-  py: 'bg-blue-100 text-blue-700',
-  ipynb: 'bg-orange-100 text-orange-700',
-  sql: 'bg-indigo-100 text-indigo-700',
-  sqlite: 'bg-indigo-100 text-indigo-700',
-  db: 'bg-indigo-100 text-indigo-700',
-  pdf: 'bg-red-100 text-red-700',
-  pptx: 'bg-orange-100 text-orange-700',
-  ppt: 'bg-orange-100 text-orange-700',
-  docx: 'bg-blue-100 text-blue-700',
-  doc: 'bg-blue-100 text-blue-700',
-}
+import Link from 'next/link'
+import { useState, useEffect } from 'react'
+import { getOffboardedEmployees, OffboardedEmployee } from '@/lib/offboarding-registry'
 
 export default function Home() {
-  const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [files, setFiles] = useState<File[]>([])
-  const [projectName, setProjectName] = useState('')
-  const [isDragging, setIsDragging] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [employees, setEmployees] = useState<OffboardedEmployee[]>([])
 
-  // Preload demo files from backend
   useEffect(() => {
-    async function loadDemoFiles() {
-      try {
-        const res = await fetch(`${API_BASE}/api/offboarding/demo-files`)
-        if (!res.ok) return
-        const filenames: string[] = await res.json()
-
-        const fetched = await Promise.all(
-          filenames.map(async (name) => {
-            const r = await fetch(`${API_BASE}/api/offboarding/demo-files/${encodeURIComponent(name)}`)
-            if (!r.ok) return null
-            const blob = await r.blob()
-            return new File([blob], name, { type: blob.type })
-          })
-        )
-
-        const valid = fetched.filter((f): f is File => f !== null)
-        if (valid.length > 0) {
-          setFiles(valid)
-          setProjectName('Credit Risk Forecasting')
-        }
-      } catch {
-        // Demo files not available — ignore
-      }
-    }
-    loadDemoFiles()
+    setEmployees(getOffboardedEmployees())
   }, [])
 
-  const addFiles = useCallback((newFiles: FileList | File[]) => {
-    setFiles(prev => {
-      const existing = new Set(prev.map(f => f.name))
-      const unique = Array.from(newFiles).filter(f => !existing.has(f.name))
-      return [...prev, ...unique]
-    })
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    if (e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files)
-    }
-  }, [addFiles])
-
-  const removeFile = (name: string) => {
-    setFiles(prev => prev.filter(f => f.name !== name))
-  }
-
-  const handleStartOffboarding = async () => {
-    if (files.length === 0) {
-      setError('Please add at least one file to analyze.')
-      return
-    }
-    if (!projectName.trim()) {
-      setError('Please enter a project name.')
-      return
-    }
-
-    setError(null)
-    setIsSubmitting(true)
-
-    try {
-      const formData = new FormData()
-      formData.append('project_name', projectName.trim())
-      formData.append('role', '')
-      for (const file of files) {
-        formData.append('files', file)
-      }
-
-      const res = await fetch(`${API_BASE}/api/offboarding/start`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`)
-      }
-
-      const data = await res.json()
-      router.push(`/screening?session=${data.session_id}`)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start analysis')
-      setIsSubmitting(false)
-    }
-  }
+  const hasOffboarded = employees.length > 0
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-10 max-w-2xl w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-amber-600 mb-1">
-            Golden Gate
-          </h1>
-          <p className="text-gray-500 text-sm">
-            Offboarding &ndash; Onboarding Agent
-          </p>
-        </div>
-
-        {/* Project Name */}
-        <div className="mb-6">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Project Name
-          </label>
-          <p className="text-xs text-gray-400 mb-2">The project or workstream being transitioned</p>
-          <input
-            type="text"
-            value={projectName}
-            onChange={e => setProjectName(e.target.value)}
-            placeholder="e.g. Credit Risk Forecasting"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          />
-        </div>
-
-        {/* Drop zone */}
-        <div className="mb-6">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Files to Analyze
-          </label>
-          <p className="text-xs text-gray-400 mb-2">Upload the outgoing employee&apos;s artefacts and documentation</p>
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`
-              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-              transition-colors duration-150
-              ${isDragging
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-              }
-            `}
-          >
-            <p className="text-sm text-gray-500">
-              {isDragging ? 'Drop files here' : 'Drag & drop files or click to browse'}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              .xlsx, .py, .docx, .pdf, .pptx, .ipynb, .sql, .csv, .txt
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={e => { if (e.target.files) addFiles(e.target.files) }}
-            />
-          </div>
-        </div>
-
-        {/* File list */}
-        {files.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {files.map(f => {
-              const ext = getFileExt(f.name)
-              const badgeColor = extBadgeColors[ext] || 'bg-gray-100 text-gray-500'
-              return (
-                <div
-                  key={f.name}
-                  className="flex items-center justify-between text-sm text-gray-700
-                             bg-gray-50 hover:bg-gray-100 px-3 py-2.5 rounded-lg
-                             border border-gray-200 transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileIcon ext={ext} />
-                    <span className="truncate">{f.name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-mono font-medium ${badgeColor}`}>
-                      .{ext}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeFile(f.name) }}
-                    className="text-gray-300 hover:text-red-500 ml-2 flex-shrink-0
-                               opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-        )}
-
-        {/* Start Button */}
-        <button
-          onClick={handleStartOffboarding}
-          disabled={isSubmitting}
-          className={`
-            w-full px-8 py-3.5 font-semibold text-base rounded-lg
-            transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
-            ${isSubmitting
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 shadow-md hover:shadow-lg'
-            }
-          `}
-        >
-          {isSubmitting ? 'Starting...' : 'Start Knowledge Capture'}
-        </button>
-
-        <p className="mt-8 text-xs text-gray-400 text-center">
-          Golden Gate &mdash; AI-powered knowledge transfer for seamless transitions
+    <main className="min-h-screen flex flex-col items-center justify-center p-8">
+      {/* Hero */}
+      <div className="text-center mb-12 max-w-2xl">
+        <h1 className="text-5xl font-bold mb-4 text-gg-accent">
+          Golden Gate
+        </h1>
+        <p className="text-gg-secondary text-lg leading-relaxed">
+          AI-powered knowledge transfer for seamless employee transitions
         </p>
       </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-6 mb-16">
+        <Link
+          href="/offboarding"
+          className="group flex items-center gap-3 px-8 py-4 bg-gg-card border border-gg-border rounded-gg
+                     hover:border-gg-rust/50 hover:shadow-lg transition-all duration-200"
+        >
+          <span className="w-3 h-3 rounded-full bg-gg-rust group-hover:shadow-[0_0_12px_rgba(192,54,44,0.5)] transition-shadow" />
+          <span className="font-semibold text-gg-text">Offboard</span>
+        </Link>
+
+        {hasOffboarded ? (
+          <button
+            disabled
+            className="group flex items-center gap-3 px-8 py-4 bg-gg-card border border-gg-border rounded-gg
+                       opacity-80 cursor-default"
+            title="Select an employee from the table below to onboard"
+          >
+            <span className="w-3 h-3 rounded-full bg-gg-gold" />
+            <span className="font-semibold text-gg-text">Onboard</span>
+          </button>
+        ) : (
+          <div
+            className="flex items-center gap-3 px-8 py-4 bg-gg-card border border-gg-border rounded-gg
+                       opacity-40 cursor-not-allowed"
+            title="Complete an offboarding first"
+          >
+            <span className="w-3 h-3 rounded-full bg-gg-gold/50" />
+            <span className="font-semibold text-gg-muted">Onboard</span>
+          </div>
+        )}
+      </div>
+
+      {/* Recently Offboarded Table */}
+      <div className="w-full max-w-3xl">
+        <div className="bg-gg-card border border-gg-border rounded-gg overflow-hidden shadow-gg-glow">
+          <div className="px-6 py-4 border-b border-gg-border">
+            <h2 className="text-sm font-semibold text-gg-secondary uppercase tracking-wider">
+              Recently Offboarded
+            </h2>
+          </div>
+
+          {employees.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-gg-muted text-sm">No offboarded employees yet.</p>
+              <p className="text-gg-muted text-xs mt-1">Start an offboarding to capture knowledge.</p>
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gg-border text-xs text-gg-muted uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left font-medium">Name</th>
+                  <th className="px-6 py-3 text-left font-medium">Role</th>
+                  <th className="px-6 py-3 text-left font-medium">Project</th>
+                  <th className="px-6 py-3 text-left font-medium">Date</th>
+                  <th className="px-6 py-3 text-right font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map((emp) => (
+                  <tr key={emp.sessionId} className="border-b border-gg-border/50 last:border-b-0 hover:bg-gg-surface/50 transition-colors">
+                    <td className="px-6 py-4 text-sm text-gg-text font-medium">{emp.employeeName}</td>
+                    <td className="px-6 py-4 text-sm text-gg-secondary">{emp.roleTitle}</td>
+                    <td className="px-6 py-4 text-sm text-gg-secondary">{emp.projectName}</td>
+                    <td className="px-6 py-4 text-sm text-gg-muted">
+                      {new Date(emp.completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link
+                        href={`/onboarding?session=${emp.sessionId}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
+                                   bg-gg-accent/10 text-gg-accent-light border border-gg-accent/30 rounded-lg
+                                   hover:bg-gg-accent/20 transition-colors"
+                      >
+                        Onboard
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-12 text-xs text-gg-muted">
+        Golden Gate &mdash; AI-powered knowledge transfer
+      </p>
     </main>
   )
 }

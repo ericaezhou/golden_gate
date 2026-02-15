@@ -10,9 +10,9 @@ interface KnowledgeGapsProps {
 type Severity = 'high' | 'medium' | 'low'
 
 const severityStyles: Record<Severity, { badge: string }> = {
-  high: { badge: 'bg-red-100 text-red-700' },
-  medium: { badge: 'bg-orange-100 text-orange-700' },
-  low: { badge: 'bg-yellow-100 text-yellow-700' },
+  high: { badge: 'bg-red-500/10 text-red-400' },
+  medium: { badge: 'bg-orange-500/10 text-orange-400' },
+  low: { badge: 'bg-yellow-500/10 text-yellow-400' },
 }
 
 const severityLabels: Record<Severity, string> = {
@@ -23,16 +23,16 @@ const severityLabels: Record<Severity, string> = {
 
 const filterButtonStyles: Record<Severity, { active: string; inactive: string }> = {
   high: {
-    active: 'bg-red-100 text-red-700 border-red-300',
-    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+    active: 'bg-red-500/10 text-red-400 border-red-500/30',
+    inactive: 'bg-gg-surface text-gg-muted border-gg-border',
   },
   medium: {
-    active: 'bg-orange-100 text-orange-700 border-orange-300',
-    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+    active: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+    inactive: 'bg-gg-surface text-gg-muted border-gg-border',
   },
   low: {
-    active: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+    active: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+    inactive: 'bg-gg-surface text-gg-muted border-gg-border',
   },
 }
 
@@ -63,7 +63,7 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
     gaps.filter((g) => g.severity === severity).length
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6">
+    <div className="bg-gg-card border border-gg-border rounded-gg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <button
@@ -71,19 +71,19 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
             className="flex items-center gap-2 cursor-pointer"
           >
             <svg
-              className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}
+              className={`w-4 h-4 text-gg-muted transition-transform duration-200 ${collapsed ? '-rotate-90' : ''}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <h2 className="text-lg font-semibold text-gray-800">
+            <h2 className="text-lg font-semibold text-gg-text">
               Knowledge Gaps
             </h2>
           </button>
           {gaps.length > 0 && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gg-muted">
               {filteredGaps.length} of {gaps.length} shown
             </span>
           )}
@@ -117,11 +117,11 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
       {!collapsed && (
         <>
           {gaps.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">
+            <p className="text-sm text-gg-muted italic">
               No gaps identified yet...
             </p>
           ) : filteredGaps.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">
+            <p className="text-sm text-gg-muted italic">
               No gaps match the selected filters
             </p>
           ) : (
@@ -131,12 +131,12 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
                 return (
                   <div
                     key={gap.id}
-                    className="p-3 rounded-lg border border-gray-200 bg-gray-50 animate-fadeIn"
+                    className="p-3 rounded-lg border border-gg-border bg-gg-surface animate-fadeIn"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800">{gap.text}</p>
+                        <p className="text-sm text-gg-text">{gap.text}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}
@@ -144,7 +144,7 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
                             {severityLabels[gap.severity]}
                           </span>
                           {gap.sourceFile && (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gg-muted">
                               from {gap.sourceFile}
                             </span>
                           )}

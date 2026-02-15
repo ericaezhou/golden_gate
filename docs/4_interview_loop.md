@@ -264,7 +264,7 @@ data/sessions/{session_id}/
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `LLM_MODEL` | `gpt-4o` | All interview LLM calls |
+| `LLM_MODEL` | `gpt-5.2` | All interview LLM calls |
 | `LLM_TEMPERATURE` | `0.2` | Low for consistent extraction |
 | `MAX_INTERVIEW_ROUNDS` | `10` | Hard cap on interview length |
 | `MAX_FOLLOWUPS_PER_QUESTION` | `1` | Follow-ups per vague answer |
