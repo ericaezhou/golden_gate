@@ -121,7 +121,7 @@ function Message({ message }: MessageProps) {
       >
         {isAssistant && (
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full bg-gg-rust flex items-center justify-center">
               <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z" />
               </svg>
@@ -223,7 +223,7 @@ function TypingIndicator() {
     <div className="flex justify-start">
       <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full bg-gg-rust flex items-center justify-center">
             <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12z" />
             </svg>

@@ -34,11 +34,11 @@ export function ProgressBar({
     <div className={className}>
       {showLabel && (
         <div className="flex justify-between mb-1 text-sm">
-          <span className="text-gray-600">Progress</span>
-          <span className="text-gray-900 font-medium">{Math.round(percentage)}%</span>
+          <span className="text-gg-secondary">Progress</span>
+          <span className="text-gg-text font-medium">{Math.round(percentage)}%</span>
         </div>
       )}
-      <div className={`w-full bg-gray-200 rounded-full overflow-hidden ${sizes[size]}`}>
+      <div className={`w-full bg-gg-border rounded-full overflow-hidden ${sizes[size]}`}>
         <div
           className={`${colors[color]} ${sizes[size]} rounded-full transition-all duration-300`}
           style={{ width: `${percentage}%` }}

@@ -15,9 +15,9 @@ export function ProgressSpinner({
       <div className="relative w-32 h-32 mb-8">
         {isComplete ? (
           // Completed state
-          <div className="w-full h-full rounded-full bg-green-100 flex items-center justify-center">
+          <div className="w-full h-full rounded-full bg-green-500/10 flex items-center justify-center">
             <svg
-              className="w-16 h-16 text-green-500"
+              className="w-16 h-16 text-green-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -33,14 +33,14 @@ export function ProgressSpinner({
         ) : (
           // Spinning state
           <>
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
+            <div className="absolute inset-0 rounded-full border-4 border-gg-border" />
             <div
-              className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"
+              className="absolute inset-0 rounded-full border-4 border-gg-accent border-t-transparent animate-spin"
               style={{ animationDuration: '1.5s' }}
             />
-            <div className="absolute inset-4 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
+            <div className="absolute inset-4 rounded-full bg-gg-surface flex items-center justify-center">
               <svg
-                className="w-10 h-10 text-blue-500"
+                className="w-10 h-10 text-gg-accent"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -60,16 +60,16 @@ export function ProgressSpinner({
       {/* Current Activity */}
       <div className="text-center">
         {isComplete ? (
-          <p className="text-lg font-medium text-green-700">
+          <p className="text-lg font-medium text-green-400">
             Analysis complete
           </p>
         ) : (
           <>
-            <p className="text-lg font-medium text-gray-700">
+            <p className="text-lg font-medium text-gg-text">
               {currentActivity || 'Initializing...'}
             </p>
             {currentFile && (
-              <p className="mt-2 text-sm text-gray-400 font-mono">
+              <p className="mt-2 text-sm text-gg-muted font-mono">
                 {currentFile}
               </p>
             )}

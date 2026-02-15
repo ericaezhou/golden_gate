@@ -101,11 +101,11 @@ export function FindingCard({
         <FilePreview file={item.file} preview={item.preview} />
 
         {/* Issue Alert */}
-        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg mt-4">
-          <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg mt-4">
+          <svg className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <p className="text-amber-800 text-sm">{item.issue}</p>
+          <p className="text-amber-300 text-sm">{item.issue}</p>
         </div>
       </div>
 
@@ -118,16 +118,16 @@ export function FindingCard({
         {/* Typing Indicator */}
         {isTyping && (
           <div className="flex gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-gg-rust flex items-center justify-center flex-shrink-0">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <div className="bg-white rounded-2xl rounded-tl-none border border-gray-200 px-4 py-3 shadow-sm">
+            <div className="bg-gg-card rounded-2xl rounded-tl-none border border-gg-border px-4 py-3">
               <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-gg-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
             </div>
           </div>
@@ -138,7 +138,7 @@ export function FindingCard({
 
       {/* Input Area - Fixed at bottom */}
       {!isViewingCompleted ? (
-        <div className="flex-shrink-0 border-t border-gray-200 pt-4 mt-auto">
+        <div className="flex-shrink-0 border-t border-gg-border pt-4 mt-auto">
           <div className="flex gap-3">
             <textarea
               ref={textareaRef}
@@ -148,12 +148,12 @@ export function FindingCard({
               placeholder="Share your knowledge..."
               disabled={isTyping}
               rows={2}
-              className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:bg-gray-50"
+              className="flex-1 rounded-xl border border-gg-border bg-gg-bg px-4 py-3 text-sm text-gg-text placeholder-gg-muted focus:outline-none focus:ring-2 focus:ring-gg-accent focus:border-transparent resize-none disabled:bg-gg-surface"
             />
             <button
               onClick={handleSend}
               disabled={!message.trim() || isTyping}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed self-end"
+              className="px-4 py-2 bg-gg-accent text-white rounded-xl hover:bg-gg-accent/90 transition-colors disabled:bg-gg-card disabled:text-gg-muted disabled:cursor-not-allowed self-end"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -164,7 +164,7 @@ export function FindingCard({
             <button
               onClick={onSkip}
               disabled={isTyping}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+              className="text-sm text-gg-muted hover:text-gg-secondary transition-colors disabled:opacity-50"
             >
               Skip this question
             </button>
@@ -177,15 +177,15 @@ export function FindingCard({
           </div>
         </div>
       ) : (
-        <div className="flex-shrink-0 border-t border-gray-200 pt-4 mt-auto">
-          <div className="flex items-center justify-between bg-green-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-green-700">
+        <div className="flex-shrink-0 border-t border-gg-border pt-4 mt-auto">
+          <div className="flex items-center justify-between bg-green-500/10 rounded-lg p-4">
+            <div className="flex items-center gap-2 text-green-400">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span className="text-sm font-medium">This item has been completed</span>
             </div>
-            <span className="text-xs text-green-600">Viewing in read-only mode</span>
+            <span className="text-xs text-green-400/70">Viewing in read-only mode</span>
           </div>
         </div>
       )}
@@ -201,14 +201,14 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
   if (isAI) {
     return (
       <div className="flex gap-3">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-full bg-gg-rust flex items-center justify-center flex-shrink-0">
           <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
-        <div className="flex-1 bg-white rounded-2xl rounded-tl-none border border-gray-200 p-4 shadow-sm">
-          <p className="text-xs font-medium text-purple-600 mb-1">Bridge AI</p>
-          <p className="text-gray-800">{message.content}</p>
+        <div className="flex-1 bg-gg-card rounded-2xl rounded-tl-none border border-gg-border p-4">
+          <p className="text-xs font-medium text-gg-accent mb-1">Bridge AI</p>
+          <p className="text-gg-text">{message.content}</p>
         </div>
       </div>
     );
@@ -216,7 +216,7 @@ function MessageBubble({ message }: { message: ConversationMessage }) {
 
   return (
     <div className="flex gap-3 justify-end">
-      <div className="max-w-[80%] bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3">
+      <div className="max-w-[80%] bg-gg-accent text-white rounded-2xl rounded-tr-none px-4 py-3">
         <p className="text-sm">{message.content}</p>
       </div>
     </div>

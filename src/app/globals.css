@@ -2,6 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --gg-bg: #060318;
+    --gg-surface: #0f0b2e;
+    --gg-card: #1a1548;
+    --gg-border: #2a2560;
+    --gg-accent: #D4A843;
+    --gg-accent-light: #E5C06E;
+    --gg-rust: #C0362C;
+    --gg-rust-light: #D4564C;
+    --gg-gold: #D4A843;
+    --gg-gold-light: #E5C06E;
+    --gg-text: #e8e5f5;
+    --gg-secondary: #9b97b8;
+    --gg-muted: #6b6890;
+  }
+
+  body {
+    background-color: var(--gg-bg);
+    color: var(--gg-text);
+  }
+}
+
 @layer utilities {
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-out forwards;

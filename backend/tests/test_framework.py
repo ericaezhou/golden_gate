@@ -43,7 +43,7 @@ def test_models_import():
 def test_config_defaults():
     from backend.config import settings
 
-    assert settings.LLM_MODEL == "gpt-4o"
+    assert settings.LLM_MODEL == "gpt-5.2"
     assert settings.MAX_INTERVIEW_ROUNDS == 10
     assert settings.MAX_OPEN_QUESTIONS == 15
     assert settings.DEEP_DIVE_PASSES_XLSX == 3
