@@ -216,9 +216,9 @@ export function useManagerInterview(sessionId: string | null) {
     // No-op: in live mode, the user types freely. handleKeyDown in ChatInput handles Enter.
   }, [])
 
-  // ── Navigate to next page ────────────────────────────────────────
+  // ── Navigate to next page (interview summary, then handoff) ───────
   const proceedToEmployeeInterview = useCallback(() => {
-    window.location.href = `/handoff?session=${sessionId}`
+    window.location.href = `/interview-summary?session=${sessionId}`
   }, [sessionId])
 
   return {

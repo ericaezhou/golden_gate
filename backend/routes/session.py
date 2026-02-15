@@ -63,3 +63,29 @@ async def get_artifacts(session_id: str) -> dict[str, Any]:
         artifacts["has_onboarding_package"] = True
 
     return artifacts
+
+
+@router.get("/{session_id}/interview-summary")
+async def get_interview_summary(session_id: str) -> dict[str, Any]:
+    """Return the interview summary and extracted facts for a session.
+
+    Used by the frontend Interview Summary page after the interview ends.
+    """
+    store = SessionStorage(session_id)
+
+    interview_summary = ""
+    if store.exists("interview/interview_summary.txt"):
+        interview_summary = store.load_text("interview/interview_summary.txt")
+
+    extracted_facts: list[str] = []
+    if store.exists("interview/extracted_facts.json"):
+        try:
+            extracted_facts = store.load_json("interview/extracted_facts.json")
+        except Exception:
+            pass
+
+    return {
+        "session_id": session_id,
+        "interview_summary": interview_summary,
+        "extracted_facts": extracted_facts,
+    }
