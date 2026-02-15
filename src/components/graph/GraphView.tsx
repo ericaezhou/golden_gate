@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -13,6 +13,7 @@ import ReactFlow, {
   NodeProps,
   MarkerType,
 } from "reactflow";
+import ReactMarkdown from "react-markdown";
 import "reactflow/dist/style.css";
 import dagre from "dagre";
 
@@ -54,6 +55,23 @@ type KG = {
   nodes: KGNode[];
   edges: KGEdge[];
 };
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+
+const CITATION_REGEX = /\[(Deep Dive: [^\]]+|Interview Summary|Global Summary)\]/g;
+function splitContentWithCitations(text: string): Array<{ type: "text" | "citation"; value: string }> {
+  const segments: Array<{ type: "text" | "citation"; value: string }> = [];
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  CITATION_REGEX.lastIndex = 0;
+  while ((m = CITATION_REGEX.exec(text)) !== null) {
+    if (m.index > lastIndex) segments.push({ type: "text", value: text.slice(lastIndex, m.index) });
+    segments.push({ type: "citation", value: m[1] });
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < text.length) segments.push({ type: "text", value: text.slice(lastIndex) });
+  return segments.length ? segments : [{ type: "text", value: text }];
+}
 
 /** API response: { session_id, kg: { nodes?, edges? } } */
 function normalizeKg(apiKg: { nodes?: unknown[]; edges?: unknown[] } | null): KG {
@@ -130,6 +148,9 @@ function layoutDagre(nodes: Node[], edges: Edge[], direction: "LR" | "TB" = "LR"
 function KGNodeView({ data }: NodeProps) {
   const raw = (data as any)?.__raw as KGNode | undefined;
   const isCenter = !!raw?.center;
+  const evidence = raw?.evidence ?? [];
+  const hasInterviewEvidence = evidence.some((e) => e.source_type === "interview");
+  const hasFileEvidence = evidence.some((e) => e.source_type === "file");
 
   const color = isCenter ? colorForType(raw?.type ?? "") : "#cbd5e1";
   const bg = isCenter ? `${color}30` : "#f1f5f9";
@@ -137,6 +158,7 @@ function KGNodeView({ data }: NodeProps) {
   return (
     <div
       style={{
+        position: "relative",
         width: nodeWidth,
         height: nodeHeight,
         borderRadius: 14,
@@ -148,8 +170,28 @@ function KGNodeView({ data }: NodeProps) {
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
+        ...(hasInterviewEvidence && {
+          outline: "5px dashed #f59e0b",
+          outlineOffset: 3,
+        }),
       }}
     >
+      {/* File source: star in top-right */}
+      {hasFileEvidence && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 8,
+            fontSize: 14,
+            color: "#64748b",
+            lineHeight: 1,
+          }}
+          title="From file / deep dive"
+        >
+          ★
+        </span>
+      )}
       {isCenter && (
         <div
           style={{
@@ -221,6 +263,35 @@ export default function GraphView({ sessionId }: GraphViewProps) {
       })
       .finally(() => setKgLoading(false));
   }, [sessionId]);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+  const sendQuestion = useCallback(async () => {
+    const q = chatInput.trim();
+    if (!q || !sessionId || chatLoading) return;
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", content: q }]);
+    setChatLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/onboarding/${sessionId}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q }),
+      });
+      const json = await res.json();
+      const answer = res.ok ? json.answer ?? "" : `Error: ${(json.detail ?? res.status).toString()}`;
+      setChatMessages((prev) => [...prev, { role: "assistant", content: answer }]);
+    } catch (e) {
+      setChatMessages((prev) => [...prev, { role: "assistant", content: e instanceof Error ? e.message : "Failed to get answer" }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [sessionId, chatInput, chatLoading]);
 
   const filteredKG = useMemo(() => {
     if (!kg) return null;
@@ -315,42 +386,151 @@ export default function GraphView({ sessionId }: GraphViewProps) {
         </ReactFlow>
       </div>
 
-      {/* ---------------- Details Panel ---------------- */}
+      {/* ---------------- Details + Chat Panel ---------------- */}
       <div
         style={{
           borderLeft: "1px solid rgba(0,0,0,0.08)",
           padding: 20,
           overflow: "auto",
           background: "white",
-          color: TEXT_PANEL,   // ✅ 全黑
+          color: TEXT_PANEL,
+          display: "flex",
+          flexDirection: "column",
+          gap: 24,
         }}
       >
-        <h2 style={{ marginTop: 0 }}>Details</h2>
-
-        {!selected ? (
-          <div style={{ color: TEXT_PANEL_SOFT }}>
-            Click a node to see details.
-          </div>
-        ) : (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 14, color: TEXT_PANEL_SOFT }}>{selected.type}</div>
-              <div style={{ fontSize: 20, fontWeight: 700 }}>{selected.name}</div>
-              {/* <div style={{ fontSize: 13, marginTop: 4 }}>
-                id: {selected.id}
-              </div> */}
-            </div>
-
-            <h3>Evidence</h3>
-            {(selected.evidence || []).map((ev, idx) => (
-              <div key={idx} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {ev.source_type} — {ev.source_id}
-                </div>
-                <div style={{ fontSize: 13 }}>{ev.quote}</div>
+        <section>
+          <h2 style={{ marginTop: 0 }}>Details</h2>
+          {!selected ? (
+            <div style={{ color: TEXT_PANEL_SOFT }}>Click a node to see details.</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 14, color: TEXT_PANEL_SOFT }}>{selected.type}</div>
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{selected.name}</div>
               </div>
-            ))}
-          </>
+              <h3>Evidence</h3>
+              {(selected.evidence || []).map((ev, idx) => (
+                <div key={idx} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{ev.source_type} — {ev.source_id}</div>
+                  <div style={{ fontSize: 13 }}>{ev.quote}</div>
+                </div>
+              ))}
+            </>
+          )}
+        </section>
+
+        {sessionId && (
+          <section style={{ flex: "1 1 200px", minHeight: 200, display: "flex", flexDirection: "column", borderTop: "1px solid #e2e8f0", paddingTop: 20 }}>
+            <h3 style={{ margin: "0 0 12px 0", fontSize: 16 }}>Ask about this project</h3>
+            <div style={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {chatMessages.length === 0 && !chatLoading && (
+                <p style={{ fontSize: 13, color: "#94a3b8" }}>Ask anything about the project, files, or processes.</p>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div
+                    style={{
+                      maxWidth: "85%",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      ...(msg.role === "user"
+                        ? { background: "#f59e0b", color: "white" }
+                        : { background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0" }),
+                    }}
+                  >
+                    {msg.role === "assistant" ? (
+                      <div>
+                        {splitContentWithCitations(msg.content).map((seg, j) =>
+                          seg.type === "citation" ? (
+                            <span
+                              key={j}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "2px 6px",
+                                marginRight: 4,
+                                marginBottom: 4,
+                                borderRadius: 4,
+                                fontSize: 11,
+                                fontWeight: 500,
+                                background: "#fef3c7",
+                                color: "#b45309",
+                                border: "1px solid #fcd34d",
+                              }}
+                            >
+                              {seg.value}
+                            </span>
+                          ) : (
+                            <ReactMarkdown
+                              key={j}
+                              components={{
+                                p: ({ children }: { children?: React.ReactNode }) => <p style={{ margin: "0 0 4px 0" }}>{children}</p>,
+                                ul: ({ children }: { children?: React.ReactNode }) => <ul style={{ margin: "4px 0", paddingLeft: 18 }}>{children}</ul>,
+                                ol: ({ children }: { children?: React.ReactNode }) => <ol style={{ margin: "4px 0", paddingLeft: 18 }}>{children}</ol>,
+                                li: ({ children }: { children?: React.ReactNode }) => <li>{children}</li>,
+                                strong: ({ children }: { children?: React.ReactNode }) => <strong>{children}</strong>,
+                              }}
+                            >
+                              {seg.value}
+                            </ReactMarkdown>
+                          )
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ padding: "8px 12px", background: "#f1f5f9", borderRadius: 8, fontSize: 13, color: "#64748b" }}>
+                  Thinking...
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendQuestion();
+              }}
+              style={{ display: "flex", gap: 8 }}
+            >
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Type your question..."
+                disabled={chatLoading}
+                style={{
+                  flex: 1,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                style={{
+                  padding: "8px 16px",
+                  background: chatLoading || !chatInput.trim() ? "#cbd5e1" : "#f59e0b",
+                  color: "white",
+                  fontWeight: 600,
+                  borderRadius: 8,
+                  border: "none",
+                  cursor: chatLoading || !chatInput.trim() ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                }}
+              >
+                Send
+              </button>
+            </form>
+          </section>
         )}
       </div>
     </div>

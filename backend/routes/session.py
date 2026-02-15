@@ -16,8 +16,6 @@ from fastapi import APIRouter, HTTPException
 
 from backend.services.storage import SessionStorage
 
-from data_delivery.run import build_kg
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/session", tags=["session"])
 
@@ -165,39 +163,32 @@ async def get_interview_summary(session_id: str) -> dict[str, Any]:
 
 @router.get("/{session_id}/kg")
 async def get_kg(session_id: str) -> dict[str, Any]:
-    """Return the knowledge graph for a session.
+    """Return the knowledge graph for a session (cached only, no LLM).
 
-    Always returns { "session_id": str, "kg": { "nodes": [...], "edges": [...] } }
-    for the frontend Knowledge Graph page. Tries, in order:
-    1. session kg.json
-    2. data/kg.json
-    3. data_delivery build_kg (if parsed files match expected shape)
-    4. onboarding-generated knowledge_graph/graph.json (same as GET /api/onboarding/.../knowledge-graph)
+    Returns { "session_id": str, "kg": { "nodes": [...], "edges": [...] } }.
+    Tries: 1) session kg.json  2) knowledge_graph/graph.json  3) data/kg.json.
+    To generate a graph, call GET /api/onboarding/{session_id}/knowledge-graph first.
     """
     store = SessionStorage(session_id)
     kg: dict[str, Any] = {"nodes": [], "edges": []}
 
     if store.exists("kg.json"):
         raw = store.load_json("kg.json")
+        print(f"raw: {raw}")
         if isinstance(raw, dict) and ("nodes" in raw or "edges" in raw):
             kg = raw
+            return {
+                "session_id": session_id,
+                "kg": kg,
+            }
+    if not kg.get("nodes") and store.exists("knowledge_graph/graph.json"):
+        kg = store.load_json("knowledge_graph/graph.json")
     if not kg.get("nodes") and os.path.exists("data/kg.json"):
         with open("data/kg.json", "r") as f:
             data = json.load(f)
             raw = data.get("kg", data) if isinstance(data, dict) else {}
             if isinstance(raw, dict) and ("nodes" in raw or "edges" in raw):
                 kg = raw
-    if not kg.get("nodes"):
-        try:
-            interview_summary = store.load_text("interview/interview_summary.txt")
-            built = build_kg(interview_summary, os.path.join(str(store.root), "parsed"))
-            if isinstance(built, dict) and ("nodes" in built or "edges" in built):
-                kg = built
-        except Exception as e:
-            logger.debug("build_kg failed for %s: %s", session_id, e)
-    # Fallback: use onboarding knowledge graph (id/label/type nodes) if present
-    if not kg.get("nodes") and store.exists("knowledge_graph/graph.json"):
-        kg = store.load_json("knowledge_graph/graph.json")
     return {
         "session_id": session_id,
         "kg": kg,

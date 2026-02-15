@@ -5,7 +5,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from time import time
 
-client = OpenAI()
 
 KG_WITH_EVIDENCE_SCHEMA = {
     "name": "onboarding_kg_with_evidence",
@@ -22,6 +21,7 @@ KG_WITH_EVIDENCE_SCHEMA = {
                         "id": {"type": "string"},
                         "type": {"type": "string"},
                         "name": {"type": "string"},
+                        "center": {"type": "boolean"},
                         "evidence": {
                             "type": "array",
                             "items": {
@@ -52,7 +52,7 @@ KG_WITH_EVIDENCE_SCHEMA = {
                         },
                         
                     },
-                    "required": ["id", "type", "name", "evidence"]
+                    "required": ["id", "type", "name", "center", "evidence"]
                 }
             },
             "edges": {
@@ -102,61 +102,96 @@ KG_WITH_EVIDENCE_SCHEMA = {
 }
 
 SYSTEM = """
-You are an expert knowledge retention engineer. Convert project knowledge into an onboarding knowledge graph.
+You are an expert knowledge retention engineer. Convert project knowledge into a compact onboarding knowledge graph optimized for quick takeover.
 
 Primary objective:
-- Help a new engineer take over the project fast with minimal reading.
+- Help a new engineer take over fast with minimal reading.
 
 Output constraints (CRITICAL):
 - Keep the graph SMALL and high-signal.
-- Target size: <= 18 nodes and <= 28 edges. Hard cap: 22 nodes, 35 edges.
+- Target <= 18 nodes and <= 28 edges. Hard cap: 22 nodes, 35 edges.
 - Include ONLY the most important entities and relationships.
 - Prefer clarity over completeness. If unsure, omit.
 
-Subgraph themes (must be represented in the graph):
-A) MODEL (how the model/system works)
-B) EVALUATION (how it is measured, metrics, datasets, evaluation pipeline)
-C) OPERATIONS (runbooks, approvals, oncall/monitoring, recurring processes)
+Required themes (must be represented among CENTER nodes):
+A) MODEL
+B) EVALUATION
+C) OPERATIONS
 
-How to encode themes:
-- Add a tag in node type or name so it can be grouped in UI, e.g.
-  name: "[MODEL] ...", "[EVAL] ...", "[OPS] ..."
-  (Do NOT create separate graphs; still output one nodes/edges list.)
+Theme encoding for CENTER node names:
+- Prefix center node names with: "[PROJECT] ...", "[MODEL] ...", "[EVAL] ...", "[OPS] ..."
 
-Selection rules:
-- Always include: 1 Project node, top 3 Modules/Components, top 3 Decisions/Rules, top 3 Risks+Mitigations, 1 Owner/Role if available.
-- Only include Documents if they are critical (e.g., runbook, spec, evaluation sheet).
-- Merge near-duplicates into one node.
-- Use simple edge types: OWNS, DEPENDS_ON, USES, DECIDED, EVALUATED_BY, MITIGATED_BY, DOCUMENTED_IN, RUNBOOK_FOR.
+========================
+CENTER / CHILD MODEL (CRITICAL)
+========================
 
-Evidence rules (CRITICAL):
+Each node has a boolean field: center
+- center=true  => "center node" (main entity)
+- center=false => "child node" (attribute/field/detail node)
+
+IMPORTANT:
+- Do NOT encode center/child in node.type.
+- node.type MUST remain semantic and readable, e.g.:
+  "owner: ...", "metric: ...", "dataset: ...", "runbook: ...",
+  "SLO: ...", "alert: ...", "cadence: ...", "module: ...", etc.
+
+Cluster ownership rule:
+- Every child node (center=false) must belong to exactly ONE center node (center=true).
+
+How to express belonging:
+- Use an explicit edge type "BELONGS_TO" from child -> center
+  OR "HAS_FIELD" from center -> child.
+- Choose ONE direction consistently in the whole graph. Prefer: center -> child with "HAS_FIELD".
+- This edge defines the cluster membership.
+
+Child node connectivity constraints (must satisfy):
+- A child node must connect to exactly ONE center node via the membership edge (HAS_FIELD or BELONGS_TO).
+- Child nodes MUST NOT connect to any other center node.
+- Child nodes MAY connect to other child nodes ONLY if they share the same parent center node.
+- No cross-cluster child-child edges.
+
+Center node relationships:
+- Center nodes may connect to other center nodes freely (cycles allowed).
+- Keep these center-center edges minimal and high-signal (prefer <= 8).
+
+========================
+EDGE TYPES (FREEFORM BUT SIMPLE)
+========================
+
+Since edge.type is not enumerated, use a SMALL set of simple edge types:
+- For center-center: OWNS, DEPENDS_ON, USES, DECIDED, EVALUATED_BY, MITIGATED_BY, DOCUMENTED_IN, RUNBOOK_FOR
+- For membership: HAS_FIELD (preferred) OR BELONGS_TO (pick one)
+- Optional within-cluster child-child edges: USES / DOCUMENTED_IN / EVALUATED_BY (only if it clarifies)
+
+If unsure about an edge, omit it.
+
+========================
+SELECTION RULES
+========================
+Always include:
+- 1 [PROJECT] center node
+- top 1 [MODEL] module/component center node
+- top 1 decision/rule (center node OR child under the relevant center)
+- top 1 risk + mitigation (center nodes OR risk center with mitigation child)
+- 1 owner/role center node if available
+
+Only include Documents if critical (runbook/spec/eval sheet).
+Merge near-duplicates.
+
+========================
+EVIDENCE RULES (CRITICAL)
+========================
 - Every node and edge must include:
   - confidence in [0,1]
-  - evidence: citations from inputs only
-- If evidence is weak, lower confidence and keep quote short (<= 140 chars).
-- snippet_hash must be "sha256:<to_fill>" (backend will replace).
-- path is file path when source_type=file, else "".
+  - evidence: citations from inputs only (quote <= 140 chars)
+- If evidence is weak, lower confidence and keep quote short.
+- snippet_hash must be "sha256:<to_fill>"
+- path is file path when source_type=file, else ""
 
-Evidence prioritization rule (CRITICAL):
-
-When generating evidence for a concept:
-
-1) If the concept appears explicitly in the Project Context (existing files),
-   then the primary evidence must come from Project Context.
-   - source_type must be "file"
-   - path must point to the corresponding project file
-   - interview evidence may be added as secondary evidence if helpful.
-
-2) Only use interview evidence as primary evidence if:
-   - The concept does NOT appear in Project Context, OR
-   - The interview provides unique rationale that is not documented in files.
-
-3) Never ignore an available file-based source in favor of interview evidence.
-   File-based evidence has higher priority.
-
-4) If both exist:
-   - Use file evidence for factual definitions.
-   - Use interview evidence for rationale or intent.
+Evidence prioritization:
+1) If concept appears in Project Context files, primary evidence must be file-based.
+2) Use interview as primary only if not documented in files or adds unique rationale.
+3) If both exist: file for facts, interview for rationale/intent.
 """
 
 
@@ -170,18 +205,38 @@ Inputs:
 {interview_transcript}
 
 Task:
-Build ONE compact onboarding knowledge graph for takeover.
+Build ONE compact onboarding knowledge graph for takeover, visually similar to a schema diagram:
 
-Required content:
-1) [MODEL] Subgraph: main architecture/modules, data flow, key assumptions
-2) [EVAL] Subgraph: metrics, datasets, eval pipeline, what "good" means
-3) [OPS] Subgraph: runbooks, approvals, monitoring, recurring processes
+- Center nodes (center=true) are the main entities.
+- Each center node has a small cluster of child nodes (center=false) underneath it.
+- Child nodes use semantic node.type like:
+  "owner: ...", "metric: ...", "dataset: ...", "runbook: ...",
+  "SLO: ...", "alert: ...", "cadence: ..."
+
+Membership encoding (pick ONE and use consistently):
+Option A (preferred): center -> child edge type "HAS_FIELD"
+Option B: child -> center edge type "BELONGS_TO"
+
+Cluster constraints (must satisfy):
+- Every child node must connect to exactly ONE center node via the membership edge.
+- Child nodes must not connect to any other center node.
+- Child-child edges are allowed ONLY within the same cluster (same parent center), and should be very few.
+
+Center-center edges:
+- Center nodes may connect to other center nodes using simple edge types:
+  OWNS, DEPENDS_ON, USES, DECIDED, EVALUATED_BY, MITIGATED_BY, DOCUMENTED_IN, RUNBOOK_FOR
+- Cycles are allowed, but keep center-center edges minimal.
+
+Required themes (must exist among center nodes):
+1) [MODEL] main architecture/modules, data flow, key assumptions
+2) [EVAL] metrics, datasets, eval pipeline, definition of "good"
+3) [OPS] runbooks, approvals, monitoring, recurring processes
 
 Hard constraints:
 - <= 22 nodes, <= 35 edges (prefer smaller).
-- Use short node names (<= 8 words).
-- Use short evidence quotes (<= 140 chars).
-- Do NOT include low-value nodes (minor helpers, generic docs, trivial details).
+- Center node names <= 8 words; child node names <= 8 words.
+- Prefer 2-5 child nodes per important center node.
+- Evidence quote <= 140 chars.
 
 Return strictly valid JSON following the provided schema.
 """
