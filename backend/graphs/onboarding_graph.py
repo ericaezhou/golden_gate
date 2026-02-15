@@ -13,9 +13,10 @@ offboarding graph.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
-import json
+
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -67,9 +68,6 @@ You MUST treat the following as the only reliable information. Do not use outsid
 1) Answer (2-6 sentences, concise)
 2) Evidence (sentences with citations)
 3) If Missing: What's not in the artifacts (1-2 sentences)
-
-## User Question
-{user_input}
 """
 
 
@@ -108,56 +106,53 @@ async def qa_loop(state: OnboardingState) -> dict:
     Each turn: LLM answers grounded in the deep dives + interview knowledge.
     No vector retrieval — the full knowledge base is the system prompt.
 
-    Reads from: state["session_id"], state["qa_system_prompt"]
-    Writes to:  state["chat_history"]
-
-    TODO: Implement LLM answering + gap detection.
-          See docs/implementation_design.md §5.3.
+    Reads from: state["session_id"], state["chat_history"]
+    Writes to:  state["chat_history"], state["current_mode"]
     """
     session_id = state["session_id"]
 
-    # Wait for user question
-    user_input = interrupt({
+    # Wait for user question (resume payload may be str or dict e.g. {"question": "..."})
+    raw_input = interrupt({
         "prompt": "Ask any question about the project.",
         "mode": "qa",
     })
-    # load global summary and interview summary
+    if isinstance(raw_input, dict):
+        user_input = raw_input.get("question", raw_input.get("content", str(raw_input)))
+    else:
+        user_input = str(raw_input)
+
+    # Load context from session storage (same paths offboarding graph writes)
     interview_summary_context = ""
+    if os.path.exists("../../output/interview_summary.txt"):
+        interview_summary_context = open("../../output/interview_summary.txt", "r").read()
+
     text_summary_context = ""
     if os.path.exists("../../output/text_summary.txt"):
         text_summary_context = open("../../output/text_summary.txt", "r").read()
-    if os.path.exists("../../output/interview_summary.txt"):
-        interview_summary_context = open("../../output/interview_summary.txt", "r").read()
-    
-    # load knowledge graph
+
     kg_context = "No KG available."
     if os.path.exists("../../output/knowledge_graph.json"):
         kg_data = json.load(open("../../output/knowledge_graph.json", "r"))
-        kg_context = str(kg_data)
-    
-    # read deep dive file
+        kg_context = json.dumps(kg_data, indent=2)
+
+    deep_dive_context = ""
     if os.path.exists("../../output/deep_dives.txt"):
         deep_dive_context = open("../../output/deep_dives.txt", "r").read()
-    else:
-        deep_dive_context = ""
 
-    # --- Placeholder retrieval + answer ---
-    formatted_prompt = QA_SYSTEM_PROMPT.format(
+    formatted_system = QA_SYSTEM_PROMPT.format(
         interview_summary_context=interview_summary_context,
         text_summary_context=text_summary_context,
         kg_context=kg_context,
         deep_dive_context=deep_dive_context,
-        user_input=user_input
     )
-    response = await call_llm(
-        system_prompt=formatted_prompt,
-        messages=state.get("chat_history", []) 
-    )
+    # call_llm(system_prompt, user_prompt) returns str
+    user_prompt = f"User Question: {user_input}"
+    response_text = await call_llm(system_prompt=formatted_system, user_prompt=user_prompt)
 
     return {
         "chat_history": [
             {"role": "user", "content": user_input},
-            {"role": "assistant", "content": response.content},
+            {"role": "assistant", "content": response_text},
         ],
         "current_mode": "qa",
     }
