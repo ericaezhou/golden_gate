@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     MAX_QUESTIONS_PER_FILE: int = 5
 
     # --- Question backlog ---
-    MAX_OPEN_QUESTIONS: int = 15
+    MAX_OPEN_QUESTIONS: int = 8
 
     # --- Interview ---
     MAX_INTERVIEW_ROUNDS: int = 10

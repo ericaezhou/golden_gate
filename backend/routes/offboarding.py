@@ -137,7 +137,8 @@ async def _run_pipeline(
                     })
 
                 elif node_name == "concatenate_deep_dives":
-                    # Emit consolidated gaps from latest-pass-per-file
+                    # Emit raw gaps from latest-pass-per-file for real-time feel
+                    # (at_risk_knowledge = high, fragile_points = medium; key_mechanics excluded)
                     latest_by_file: dict[str, dict] = {}
                     for rpt in accumulated_reports:
                         fid = rpt.get("file_id", "")
@@ -167,16 +168,16 @@ async def _run_pipeline(
                                     "source_file": source_file,
                                 }),
                             })
-                        for item in rd.get("key_mechanics", []):
-                            await queue.put({
-                                "event": "gap_discovered",
-                                "data": json.dumps({
-                                    "text": item,
-                                    "severity": "low",
-                                    "source_file": source_file,
-                                }),
-                            })
 
+                elif node_name == "global_summarize":
+                    # Emit deduplicated gaps — frontend replaces raw gaps with this list
+                    deduped = state_update.get("deduplicated_gaps", [])
+                    await queue.put({
+                        "event": "gaps_reconciled",
+                        "data": json.dumps({
+                            "gaps": deduped,
+                        }),
+                    })
                     await queue.put({
                         "event": "step_completed",
                         "data": json.dumps({
@@ -192,9 +193,14 @@ async def _run_pipeline(
                         }),
                     })
 
-                    # Emit questions from question_backlog (capped)
+                elif node_name == "reconcile_questions":
+                    # Emit final reconciled questions
                     questions = state_update.get("question_backlog", [])
-                    for q in questions[:settings.MAX_OPEN_QUESTIONS]:
+                    open_qs = [
+                        q for q in questions
+                        if (q if isinstance(q, dict) else q.model_dump()).get("status", "") == "open"
+                    ]
+                    for q in open_qs[:settings.MAX_OPEN_QUESTIONS]:
                         qd = q if isinstance(q, dict) else q.model_dump()
                         q_fid = qd.get("source_file_id", "")
                         await queue.put({
@@ -210,7 +216,7 @@ async def _run_pipeline(
                         "event": "step_completed",
                         "data": json.dumps({
                             "step": "generate_questions",
-                            "message": f"Generated {min(len(questions), settings.MAX_OPEN_QUESTIONS)} interview questions",
+                            "message": f"Generated {min(len(open_qs), settings.MAX_OPEN_QUESTIONS)} interview questions",
                         }),
                     })
 

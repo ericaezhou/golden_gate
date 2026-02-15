@@ -200,7 +200,7 @@ def _parse_llm_response(
     if pass_number > 1 and previous:
         prev_summary = previous[-1].cumulative_summary
         if prev_summary:
-            cumulative = f"{prev_summary}\n\n[Pass {pass_number}] {cumulative}"
+            cumulative = f"{prev_summary}\n\n{cumulative}"
 
     return DeepDiveReport(
         file_id=file.file_id,

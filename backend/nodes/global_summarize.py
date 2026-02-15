@@ -27,7 +27,7 @@ You are an expert knowledge-risk analyst. Your job is to look ACROSS all \
 files in a departing employee's project folder and identify knowledge gaps \
 that only become visible when reasoning across multiple files together.
 
-Return your analysis as JSON with exactly two keys:
+Return your analysis as JSON with exactly three keys:
 
 {
   "global_summary": "<string — a project-wide narrative covering the holistic state of this body of work>",
@@ -38,6 +38,13 @@ Return your analysis as JSON with exactly two keys:
       "involved_files": ["file_id_1", "file_id_2"],
       "evidence": "<brief quote or reference that motivated this question>"
     }
+  ],
+  "deduplicated_gaps": [
+    {
+      "text": "<a concise description of the knowledge gap>",
+      "severity": "high" | "medium" | "low",
+      "source_files": ["filename_1", "filename_2"]
+    }
   ]
 }
 
@@ -45,6 +52,16 @@ Priority levels:
 - P0: Total knowledge-loss risk — undocumented, lives only in this person's head
 - P1: Partial / ambiguous — some documentation exists but is incomplete or contradictory
 - P2: Nice-to-have clarification
+
+Severity levels for gaps:
+- high: at-risk knowledge — undocumented decisions, heuristics, or tribal knowledge
+- medium: fragile points — brittle, manual, or error-prone processes
+- low: minor clarifications
+
+For deduplicated_gaps: merge any redundant or near-duplicate findings that appear \
+across multiple files into a single entry. Include ALL originating filenames in \
+source_files. Do NOT include key_mechanics (core logic descriptions) — only include \
+actual knowledge risks and fragile points.
 
 Focus on questions that ONLY emerge from cross-file analysis:
 1. Assumption mismatches (e.g., one file says X, another uses Y)
@@ -94,6 +111,7 @@ async def global_summarize(state: OffboardingState) -> dict:
 
     global_summary = result.get("global_summary", "")
     raw_questions = result.get("questions", [])
+    deduplicated_gaps = result.get("deduplicated_gaps", [])
 
     # Build Question objects with GLOBAL origin
     new_questions: list[Question] = []
@@ -128,6 +146,7 @@ async def global_summarize(state: OffboardingState) -> dict:
     store.save_json("global_summary.json", {
         "global_summary": global_summary,
         "new_questions": [q.model_dump() for q in new_questions],
+        "deduplicated_gaps": deduplicated_gaps,
     })
 
     logger.info(
@@ -143,6 +162,7 @@ async def global_summarize(state: OffboardingState) -> dict:
     return {
         "global_summary": global_summary,
         "question_backlog": updated_backlog,
+        "deduplicated_gaps": deduplicated_gaps,
         "status": "summarized",
         "current_step": "global_summarize",
     }

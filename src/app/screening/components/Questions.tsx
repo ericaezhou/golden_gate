@@ -7,17 +7,22 @@ interface QuestionsProps {
   questions: QuestionItem[]
 }
 
-const priorityStyles: Record<string, { badge: string }> = {
-  P0: { badge: 'bg-red-100 text-red-700' },
-  P1: { badge: 'bg-orange-100 text-orange-700' },
-  P2: { badge: 'bg-yellow-100 text-yellow-700' },
-  P3: { badge: 'bg-gray-100 text-gray-500' },
+const priorityMap: Record<string, { label: string; badge: string; order: number }> = {
+  P0: { label: 'High', badge: 'bg-red-100 text-red-700', order: 0 },
+  P1: { label: 'Medium', badge: 'bg-orange-100 text-orange-700', order: 1 },
+  P2: { label: 'Low', badge: 'bg-yellow-100 text-yellow-700', order: 2 },
 }
 
 export function Questions({ questions }: QuestionsProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   if (questions.length === 0) return null
+
+  const sorted = [...questions].sort((a, b) => {
+    const aOrder = priorityMap[a.priority]?.order ?? 9
+    const bOrder = priorityMap[b.priority]?.order ?? 9
+    return aOrder - bOrder
+  })
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
@@ -44,8 +49,8 @@ export function Questions({ questions }: QuestionsProps) {
       </div>
 
       {!collapsed && <div className="space-y-3">
-        {questions.map((q, index) => {
-          const styles = priorityStyles[q.priority] || priorityStyles.P1
+        {sorted.map((q, index) => {
+          const pm = priorityMap[q.priority] || priorityMap.P1
           return (
             <div
               key={q.id}
@@ -53,16 +58,13 @@ export function Questions({ questions }: QuestionsProps) {
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <div className="flex items-start gap-3">
-                <span className="text-gray-400 text-sm font-mono flex-shrink-0 mt-0.5">
-                  {index + 1}.
-                </span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800">{q.text}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles.badge}`}
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${pm.badge}`}
                     >
-                      {q.priority}
+                      {pm.label}
                     </span>
                     {q.sourceFile && (
                       <span className="text-xs text-gray-400">
