@@ -61,3 +61,4 @@ kg*.txt
 # mock data for kg
 src/data/interviewTranscript.md
 src/data/short_interview.md
+mock/*
