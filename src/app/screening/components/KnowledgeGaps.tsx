@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { KnowledgeGap } from '../mockData'
 
 interface KnowledgeGapsProps {
@@ -25,17 +28,81 @@ const severityStyles = {
   },
 }
 
+const filterButtonStyles = {
+  high: {
+    active: 'bg-red-100 text-red-700 border-red-300',
+    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+  },
+  medium: {
+    active: 'bg-orange-100 text-orange-700 border-orange-300',
+    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+  },
+  low: {
+    active: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+    inactive: 'bg-gray-100 text-gray-400 border-gray-200',
+  },
+}
+
+type Severity = 'high' | 'medium' | 'low'
+
 export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
+  const [activeFilters, setActiveFilters] = useState<Set<Severity>>(
+    new Set<Severity>(['high', 'medium', 'low'])
+  )
+
+  const toggleFilter = (severity: Severity) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(severity)) {
+        next.delete(severity)
+      } else {
+        next.add(severity)
+      }
+      return next
+    })
+  }
+
+  const filteredGaps = gaps.filter((gap) => activeFilters.has(gap.severity))
+
+  const countBySeverity = (severity: Severity) =>
+    gaps.filter((g) => g.severity === severity).length
+
   return (
-    <div className="bg-white rounded-xl shadow-lg p-6 h-fit">
+    <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">
-          Knowledge Gaps
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Knowledge Gaps
+          </h2>
+          {gaps.length > 0 && (
+            <span className="text-sm text-gray-500">
+              {filteredGaps.length} of {gaps.length} shown
+            </span>
+          )}
+        </div>
+
+        {/* Severity filters */}
         {gaps.length > 0 && (
-          <span className="text-sm text-gray-500">
-            {gaps.length} identified
-          </span>
+          <div className="flex items-center gap-2">
+            {(['high', 'medium', 'low'] as Severity[]).map((severity) => {
+              const count = countBySeverity(severity)
+              const isActive = activeFilters.has(severity)
+              const styles = filterButtonStyles[severity]
+              return (
+                <button
+                  key={severity}
+                  onClick={() => toggleFilter(severity)}
+                  className={`
+                    px-3 py-1 text-xs font-medium rounded-full border
+                    transition-all duration-200 cursor-pointer
+                    ${isActive ? styles.active : styles.inactive}
+                  `}
+                >
+                  {severity} ({count})
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
 
@@ -43,12 +110,16 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
         <p className="text-sm text-gray-400 italic">
           No gaps identified yet...
         </p>
+      ) : filteredGaps.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">
+          No gaps match the selected filters
+        </p>
       ) : (
-        <ul className="space-y-3">
-          {gaps.map((gap, index) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {filteredGaps.map((gap, index) => {
             const styles = severityStyles[gap.severity]
             return (
-              <li
+              <div
                 key={gap.id}
                 className={`
                   p-3 rounded-lg border transition-all duration-500
@@ -60,7 +131,6 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
                 }}
               >
                 <div className="flex items-start gap-2">
-                  {/* Warning icon */}
                   <svg
                     className={`w-4 h-4 mt-0.5 flex-shrink-0 ${styles.icon}`}
                     fill="none"
@@ -94,10 +164,10 @@ export function KnowledgeGaps({ gaps }: KnowledgeGapsProps) {
                     </p>
                   </div>
                 </div>
-              </li>
+              </div>
             )
           })}
-        </ul>
+        </div>
       )}
     </div>
   )

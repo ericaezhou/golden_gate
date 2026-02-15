@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from langgraph.graph import END, START, StateGraph
 
-from backend.models.state import FileDeepDiveState
+from backend.models.state import FileDeepDiveState, FileDeepDiveOutput
 from backend.nodes.deep_dive import run_deep_dive_pass, should_continue_passes
 
 
@@ -21,8 +21,12 @@ def build_file_deep_dive_subgraph() -> StateGraph:
                   ↑               │
                   └── continue ───┘
                               done → END
+
+    Uses FileDeepDiveOutput to restrict what gets written back to the
+    parent graph, avoiding InvalidUpdateError on concurrent fan-in of
+    non-reducer keys like session_id.
     """
-    builder = StateGraph(FileDeepDiveState)
+    builder = StateGraph(FileDeepDiveState, output=FileDeepDiveOutput)
 
     builder.add_node("run_pass", run_deep_dive_pass)
 

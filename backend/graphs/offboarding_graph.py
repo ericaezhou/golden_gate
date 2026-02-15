@@ -31,8 +31,9 @@ from backend.graphs.subgraphs.file_deep_dive import file_deep_dive_subgraph
 def _fan_out_deep_dives(state: OffboardingState) -> list[Send]:
     """Create one Send() per file for parallel deep-dive analysis."""
     files = state.get("structured_files", [])
+    session_id = state.get("session_id", "")
     return [
-        Send("file_deep_dive", prepare_deep_dive_input(f))
+        Send("file_deep_dive", prepare_deep_dive_input(f, session_id))
         for f in files
     ]
 
@@ -95,5 +96,31 @@ def build_offboarding_graph():
     builder.add_edge("interview_loop", "generate_onboarding_package")
     builder.add_edge("generate_onboarding_package", "build_retrieval_index")
     builder.add_edge("build_retrieval_index", END)
+
+    return builder.compile()
+
+
+def build_deep_dive_only_graph():
+    """Build a truncated graph: parse → deep dives → concatenate → END.
+
+    Use this when running without a checkpointer (the full graph requires
+    one for interview_loop's interrupt()).
+    """
+    builder = StateGraph(OffboardingState)
+
+    builder.add_node("parse_files", parse_files)
+    builder.add_node("file_deep_dive", file_deep_dive_subgraph)
+    builder.add_node("collect_deep_dives", _collect_deep_dives)
+    builder.add_node("concatenate_deep_dives", concatenate_deep_dives)
+
+    builder.add_edge(START, "parse_files")
+    builder.add_conditional_edges(
+        "parse_files",
+        _fan_out_deep_dives,
+        ["file_deep_dive"],
+    )
+    builder.add_edge("file_deep_dive", "collect_deep_dives")
+    builder.add_edge("collect_deep_dives", "concatenate_deep_dives")
+    builder.add_edge("concatenate_deep_dives", END)
 
     return builder.compile()

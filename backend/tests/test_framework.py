@@ -91,9 +91,7 @@ def test_fastapi_app_creates():
 # ------------------------------------------------------------------
 # 5. Parse node produces StructuredFiles
 # ------------------------------------------------------------------
-def test_parse_files_node(tmp_path, monkeypatch):
-    import asyncio
-
+async def test_parse_files_node(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "backend.config.settings.SESSIONS_DIR", str(tmp_path)
     )
@@ -111,7 +109,7 @@ def test_parse_files_node(tmp_path, monkeypatch):
         "session_id": sid,
         "project_metadata": {},
     }
-    result = asyncio.get_event_loop().run_until_complete(parse_files(state))
+    result = await parse_files(state)
 
     assert len(result["structured_files"]) == 1
     assert result["structured_files"][0].file_name == "notes.md"

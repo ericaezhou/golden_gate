@@ -78,6 +78,17 @@ class FileDeepDiveState(TypedDict, total=False):
     max_passes: int
     previous_passes: list[DeepDiveReport]
     current_report: DeepDiveReport | None
+    session_id: str
+    deep_dive_reports: Annotated[list[DeepDiveReport], _append_list]
+
+
+class FileDeepDiveOutput(TypedDict, total=False):
+    """Output schema for the deep dive subgraph.
+
+    Only includes keys safe to fan-in to the parent OffboardingState.
+    session_id is excluded to avoid InvalidUpdateError on concurrent writes.
+    """
+    deep_dive_reports: Annotated[list[DeepDiveReport], _append_list]
 
 
 # ------------------------------------------------------------------

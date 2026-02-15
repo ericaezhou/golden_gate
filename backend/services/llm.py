@@ -77,16 +77,22 @@ async def call_llm_json(
 ) -> dict[str, Any]:
     """Call the LLM and parse the response as JSON.
 
-    The system prompt should instruct the model to return valid JSON.
-    Falls back to extracting JSON from markdown fences if needed.
+    Uses response_format=json_object to guarantee valid JSON output.
+    Falls back to extracting JSON from markdown fences if the model
+    doesn't support response_format.
     """
-    raw = await call_llm(
-        system_prompt,
-        user_prompt,
-        model=model,
-        temperature=temperature,
-        max_tokens=max_tokens,
+    client = _get_client()
+    response = await client.chat.completions.create(
+        model=model or settings.LLM_MODEL,
+        temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
+        max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
     )
+    raw = response.choices[0].message.content or ""
 
     # Try direct parse first
     try:

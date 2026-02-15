@@ -1,20 +1,33 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { TaskChecklist, ProgressSpinner, KnowledgeGaps } from './components'
+import { Task, KnowledgeGap } from './mockData'
 import { useScreeningProgress } from './useScreeningProgress'
+import { useScreeningProgressLive } from './useScreeningProgressLive'
 
-export default function ScreeningPage() {
+/** Shared layout — renders whichever progress data is passed in. */
+function ScreeningLayout({
+  tasks,
+  completedTaskIds,
+  currentTaskId,
+  currentActivity,
+  currentFile,
+  discoveredGaps,
+  isComplete,
+  error,
+}: {
+  tasks: Task[]
+  completedTaskIds: Set<string>
+  currentTaskId: string | null
+  currentActivity: string | null
+  currentFile: string | null
+  discoveredGaps: KnowledgeGap[]
+  isComplete: boolean
+  error?: string | null
+}) {
   const router = useRouter()
-  const {
-    tasks,
-    completedTaskIds,
-    currentTaskId,
-    currentActivity,
-    currentFile,
-    discoveredGaps,
-    isComplete,
-  } = useScreeningProgress()
 
   const handleProceedToInterview = () => {
     router.push('/manager-interview')
@@ -33,8 +46,15 @@ export default function ScreeningPage() {
           </p>
         </div>
 
-        {/* Main Content - Three Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Error banner */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Main Content - Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Task Checklist */}
           <div className="lg:col-span-1">
             <TaskChecklist
@@ -71,13 +91,47 @@ export default function ScreeningPage() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Right Column - Knowledge Gaps */}
-          <div className="lg:col-span-1">
-            <KnowledgeGaps gaps={discoveredGaps} />
-          </div>
+        {/* Knowledge Gaps - Full Width Below */}
+        <div className="mt-6">
+          <KnowledgeGaps gaps={discoveredGaps} />
         </div>
       </div>
     </main>
+  )
+}
+
+/** Live mode — connected to real backend via SSE. */
+function LiveScreening({ sessionId }: { sessionId: string }) {
+  const progress = useScreeningProgressLive(sessionId)
+  return <ScreeningLayout {...progress} />
+}
+
+/** Mock/demo mode — hardcoded data with timers. */
+function MockScreening() {
+  const progress = useScreeningProgress()
+  return <ScreeningLayout {...progress} error={null} />
+}
+
+function ScreeningContent() {
+  const searchParams = useSearchParams()
+  const sessionId = searchParams.get('session')
+
+  if (sessionId) {
+    return <LiveScreening sessionId={sessionId} />
+  }
+  return <MockScreening />
+}
+
+export default function ScreeningPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </main>
+    }>
+      <ScreeningContent />
+    </Suspense>
   )
 }

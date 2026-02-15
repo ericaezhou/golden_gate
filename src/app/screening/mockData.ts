@@ -89,6 +89,20 @@ export const KNOWLEDGE_GAPS: KnowledgeGap[] = [
     severity: 'medium',
     discoveredAtTaskId: 'codebase',
   },
+  {
+    id: 'gap-3',
+    title: 'Committee meeting cadence',
+    description: 'Risk committee schedule and escalation path referenced but not defined',
+    severity: 'low',
+    discoveredAtTaskId: 'documents',
+  },
+  {
+    id: 'gap-4',
+    title: 'Data source refresh frequency',
+    description: 'External data feed update schedule not specified in spreadsheets',
+    severity: 'low',
+    discoveredAtTaskId: 'spreadsheets',
+  },
 ]
 
 // ===========================================
