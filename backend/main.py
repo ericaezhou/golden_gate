@@ -10,6 +10,7 @@ Or via the project script:
 from __future__ import annotations
 
 import logging
+import sys
 
 import uvicorn
 from fastapi import FastAPI
@@ -25,6 +26,16 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
 )
+logger = logging.getLogger(__name__)
+
+# ------------------------------------------------------------------
+# API key validation
+# ------------------------------------------------------------------
+if not settings.OPENAI_API_KEY:
+    logger.warning(
+        "OPENAI_API_KEY is not set. LLM calls will fail. "
+        "Set it in .env or as an environment variable."
+    )
 
 # ------------------------------------------------------------------
 # App

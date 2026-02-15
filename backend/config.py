@@ -21,10 +21,6 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 4096
 
-    # --- Embedding settings ---
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-    EMBEDDING_DIMENSIONS: int = 1536
-
     # --- Deep dive settings ---
     DEEP_DIVE_PASSES_XLSX: int = 3
     DEEP_DIVE_PASSES_DEFAULT: int = 2
@@ -35,8 +31,6 @@ class Settings(BaseSettings):
 
     # --- Interview ---
     MAX_INTERVIEW_ROUNDS: int = 10
-    MAX_FOLLOWUPS_PER_QUESTION: int = 1
-
     # --- Storage ---
     SESSIONS_DIR: str = "data/sessions"
 

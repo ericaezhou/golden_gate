@@ -66,17 +66,25 @@ class SessionStorage:
     def save_uploaded_file(
         self, filename: str, content: bytes,
     ) -> Path:
-        """Save an uploaded file to raw_files/."""
-        dest = self.root / "raw_files" / filename
+        """Save an uploaded file to raw_files/.
+
+        Sanitises the filename to prevent directory traversal attacks.
+        """
+        # Strip directory components and null bytes
+        safe_name = Path(filename).name.replace("\x00", "")
+        if not safe_name:
+            safe_name = "unnamed_file"
+        dest = self.root / "raw_files" / safe_name
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(content)
         return dest
 
     def list_raw_files(self) -> list[Path]:
+        """Return sorted list of files in raw_files/ (directories excluded)."""
         raw_dir = self.root / "raw_files"
         if not raw_dir.exists():
             return []
-        return sorted(raw_dir.iterdir())
+        return sorted(p for p in raw_dir.iterdir() if p.is_file())
 
     def get_session_path(self) -> Path:
         return self.root

@@ -1,6 +1,6 @@
 # Project Progress — What's Done & What's TODO
 
-*Last updated: Feb 14, 2026*
+*Last updated: Feb 15, 2026*
 
 ---
 
@@ -11,10 +11,10 @@
 | Project setup | **Done** | `pyproject.toml`, `uv sync`, `.env.example` |
 | Data models | **Done** | Pydantic models + LangGraph state types |
 | File parsers | **Done** | 10 parsers (xlsx, pptx, py, ipynb, md, sql, pdf, docx, sqlite, txt) |
-| Services (LLM, storage) | **Done** | Fully implemented wrappers (embeddings.py removed — MVP uses system prompt) |
+| Services (LLM, storage) | **Done** | Fully implemented wrappers (embeddings.py removed — MVP uses system prompt). Storage now sanitizes filenames and filters directories. |
 | Graph skeletons | **Done** | Offboarding + onboarding graphs wired with all edges |
 | FastAPI app + routes | **Done** | All endpoints exist with stub responses |
-| Pipeline nodes | **Partial** | 7 of 8 implemented; only `interview.py` LLM calls remain as TODOs |
+| Pipeline nodes | **Partial** | 7 of 8 offboarding nodes implemented; onboarding graph (`generate_narrative`, `qa_loop`) now fully implemented; only `interview.py` LLM calls remain as TODOs |
 | Route wiring to graphs | **Partial** | `routes/offboarding.py` fully wired (SSE streaming, background task); interview + onboarding routes still stubs |
 | Frontend ↔ backend integration | **TODO** | Frontend still uses mock data |
 | Tests | **Partial** | 92 tests passing (6 framework + 14 reconcile + 24 deep dive + 26 integration + 22 generate_package) |
@@ -28,8 +28,8 @@
 | File | What it does |
 |------|-------------|
 | `pyproject.toml` | All Python dependencies, pytest config, ruff config |
-| `backend/config.py` | Centralized settings loaded from `.env` — API keys, model names, limits |
-| `backend/main.py` | FastAPI app with CORS, all routers mounted, health endpoint |
+| `backend/config.py` | Centralized settings loaded from `.env` — API keys, model names, limits. Unused embedding settings removed. |
+| `backend/main.py` | FastAPI app with CORS, all routers mounted, health endpoint. Warns at startup if `OPENAI_API_KEY` is missing. |
 
 ### Data Models (`backend/models/`)
 
@@ -70,7 +70,7 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 | File | What it does |
 |------|-------------|
 | `offboarding_graph.py` | Full pipeline: `START → parse → fan-out deep dives → collect → concat → global → reconcile → interview → [package + qa_context] → END`. Also exposes `build_deep_dive_only_graph()` (truncated: parse → deep dives → concat → END, no checkpointer needed). |
-| `onboarding_graph.py` | `START → generate_narrative → qa_loop (system-prompt based, with interrupt)` |
+| `onboarding_graph.py` | `START → generate_narrative → qa_loop (system-prompt based, with interrupt)`. Both nodes now fully implemented with LLM calls. |
 | `subgraphs/file_deep_dive.py` | Per-file loop: `START → run_pass → continue/done → END`. Uses `FileDeepDiveOutput` to restrict fan-in keys. |
 
 ### Implemented Nodes
@@ -168,20 +168,22 @@ Fully wired: runs `build_deep_dive_only_graph()` in a background task with `asyn
 
 ---
 
-### Priority 3: Onboarding Graph Nodes
+### ~~Priority 3: Onboarding Graph Nodes~~ — DONE
 
-#### `graphs/onboarding_graph.py` — `generate_narrative`
+#### ~~`graphs/onboarding_graph.py` — `generate_narrative`~~ — DONE
 
-- [ ] LLM call: generate guided narrative from onboarding package
-- [ ] Produce first-week checklist
-- [ ] Flag top 3 risks/gotchas
+- [x] LLM call: generate guided narrative from onboarding package
+- [x] Produce first-week checklist
+- [x] Flag top 3 risks/gotchas
+- [x] Persist output to `onboarding_narrative.md`
 
-#### `graphs/onboarding_graph.py` — `qa_loop`
+#### ~~`graphs/onboarding_graph.py` — `qa_loop`~~ — DONE
 
-- [ ] Load `qa_system_prompt.txt` as the LLM system prompt
-- [ ] LLM call: answer user questions grounded in deep dives + interview knowledge
-- [ ] Gap detection: generate gap tickets for low-confidence answers
-- [ ] **No vector retrieval** — entire knowledge base is in the system prompt
+- [x] Load `qa_system_prompt.txt` as the LLM system prompt (with fallback assembly from individual files)
+- [x] LLM call: answer user questions grounded in deep dives + interview knowledge
+- [x] Conversation context carried forward (last 6 messages)
+- [x] Correct `call_llm()` signature used (system_prompt, user_prompt)
+- [x] **No vector retrieval** — entire knowledge base is in the system prompt
 
 ---
 
@@ -224,4 +226,4 @@ Each priority can be worked on by different people in parallel since they're dec
 | **E2: Interview + Onboarding routes** | — | `routes/interview.py`, `routes/onboarding.py` | Stubs — need LangGraph interrupt wiring + system-prompt QA |
 | **F: Frontend** | — | `src/app/` pages + knowledge graph visualization (on-demand) | Depends on routes |
 
-Remaining work is concentrated in tracks C, D, E2, and F.
+Remaining work is concentrated in tracks C, E2, and F.
