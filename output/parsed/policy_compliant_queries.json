@@ -1,0 +1,105 @@
+{
+  "file_id": "policy_compliant_queries.sql",
+  "file_path": "/Users/magnus/git/golden_gate/data/policy_compliant_queries.sql",
+  "file_type": "sql",
+  "metadata": {
+    "statements": [
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "policy_snapshot"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "as_of_quarter"
+        ]
+      },
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "macro_quarterly"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "quarter",
+          "gdp_growth"
+        ]
+      },
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "historical_defaults"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "default_rate",
+          "quarter"
+        ]
+      },
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "historical_defaults"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "default_rate",
+          "quarter"
+        ]
+      },
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "capital_position"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "quarter"
+        ]
+      },
+      {
+        "type": "SELECT",
+        "tables_read": [
+          "loan_cohorts"
+        ],
+        "tables_written": [],
+        "joins": [],
+        "columns": [
+          "cohort",
+          "exposure_ead",
+          "lgd"
+        ]
+      }
+    ],
+    "all_tables": [
+      "capital_position",
+      "historical_defaults",
+      "loan_cohorts",
+      "macro_quarterly",
+      "policy_snapshot"
+    ],
+    "all_columns": [
+      "as_of_quarter",
+      "cohort",
+      "default_rate",
+      "exposure_ead",
+      "gdp_growth",
+      "lgd",
+      "quarter"
+    ]
+  },
+  "content": "## SQL Summary\n**Tables (5):** capital_position, historical_defaults, loan_cohorts, macro_quarterly, policy_snapshot\n**Columns (7):** as_of_quarter, cohort, default_rate, exposure_ead, gdp_growth, lgd, quarter\n**Operations (6):** 6 SELECT\n\n## SQL Content\n```sql\n-- policy_compliant_queries.sql\n-- Q3 (2026Q1) Risk Forecast Workstream\n-- NOTE: Two query variants are included:\n--   (A) POLICY_COMPLIANT (12-quarter window)\n--   (B) LEGACY_SHORTCUT (4-quarter window)  <-- commonly used by Alice historically (may violate policy)\n\n-- POLICY SNAPSHOT\nSELECT * FROM policy_snapshot WHERE as_of_quarter = '2026Q1';\n\n-- GDP TRIGGER CHECK\nSELECT quarter, gdp_growth\nFROM macro_quarterly\nWHERE quarter = '2026Q1';\n\n-- (A) POLICY_COMPLIANT: 12-quarter rolling average default rate (uses last 12 quarters through as_of_quarter)\nWITH ordered AS (\n  SELECT quarter, default_rate\n  FROM historical_defaults\n  ORDER BY quarter\n),\nlast12 AS (\n  SELECT * FROM ordered\n  ORDER BY quarter DESC\n  LIMIT 12\n)\nSELECT AVG(default_rate) AS avg_default_rate_12q\nFROM last12;\n\n-- (B) LEGACY_SHORTCUT: 4-quarter average (faster, but NOT policy-compliant)\nWITH ordered AS (\n  SELECT quarter, default_rate\n  FROM historical_defaults\n  ORDER BY quarter\n),\nlast4 AS (\n  SELECT * FROM ordered\n  ORDER BY quarter DESC\n  LIMIT 4\n)\nSELECT AVG(default_rate) AS avg_default_rate_4q\nFROM last4;\n\n-- LATEST CAPITAL POSITION\nSELECT *\nFROM capital_position\nORDER BY quarter DESC\nLIMIT 1;\n\n-- COHORT EXPOSURES (EAD) and LGD\nSELECT cohort, exposure_ead, lgd\nFROM loan_cohorts;\n```\n",
+  "references": [
+    "capital_position",
+    "historical_defaults",
+    "loan_cohorts",
+    "macro_quarterly",
+    "policy_snapshot"
+  ],
+  "warnings": []
+}

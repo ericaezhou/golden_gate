@@ -1,0 +1,40 @@
+{
+  "file_id": "forecast_and_valuation_model.ipynb",
+  "file_path": "/Users/magnus/git/golden_gate/data/forecast_and_valuation_model.ipynb",
+  "file_type": "ipynb",
+  "metadata": {
+    "kernel": "python3",
+    "cell_count": 15,
+    "code_cells": 9,
+    "markdown_cells": 6,
+    "imports": [
+      "sqlite3",
+      "pandas",
+      "numpy",
+      "from pathlib import Path"
+    ],
+    "functions": [],
+    "file_references": [
+      "data",
+      "analysis",
+      "portfolio_risk.db",
+      "risk_policy_v3_2.docx",
+      "alice_past_runs_and_sensitivity.xlsx",
+      "current_run_output.csv"
+    ]
+  },
+  "content": "# Jupyter Notebook\n\n### Cell 1 (markdown)\n\n# Q3 Risk Forecast Workstream \u2014 Alice Chen (Transition Package)\n\nThis notebook produces the quarterly portfolio risk forecast used in the board memo.\n\nInputs:\n- SQLite DB: `data/portfolio_risk.db`\n- Policy reference: `docs/risk_policy_v3_2.docx`\n- Historical run log: `analysis/alice_past_runs_and_sensitivity.xlsx`\n\nOutputs:\n- `analysis/current_run_output.csv`\n\n> **Note:** This notebook includes legacy shortcuts that may need alignment with policy.\n\n### Cell 2 (code)\n\n```python\nimport sqlite3\nimport pandas as pd\nimport numpy as np\nfrom pathlib import Path\n\nDB_PATH = Path('data') / 'portfolio_risk.db'\nAS_OF_QUARTER = '2026Q1'\n\n# --- Legacy parameters (may be inconsistent with policy) ---\nFORECAST_WINDOW_QUARTERS = 4   # <-- legacy shortcut; policy may require 12\nSTRESS_PD_MULTIPLIER = 1.10    # <-- legacy; policy may require 1.15\nDISCOUNT_RATE = 0.105          # <-- legacy; policy may approve 0.085\n\nconn = sqlite3.connect(DB_PATH)\n```\n\n### Cell 3 (code)\n\n```python\npolicy = pd.read_sql_query(\"SELECT * FROM policy_snapshot WHERE as_of_quarter = ?\", conn, params=[AS_OF_QUARTER])\nmacro = pd.read_sql_query(\"SELECT * FROM macro_quarterly WHERE quarter = ?\", conn, params=[AS_OF_QUARTER])\ndefaults = pd.read_sql_query(\"SELECT * FROM historical_defaults ORDER BY quarter\", conn)\ncapital = pd.read_sql_query(\"SELECT * FROM capital_position ORDER BY quarter\", conn)\ncohorts = pd.read_sql_query(\"SELECT * FROM loan_cohorts\", conn)\n\npolicy, macro.head(), defaults.tail(3), capital.tail(1), cohorts\n```\n\n### Cell 4 (markdown)\n\n## Step 1 \u2014 Forecast base default rate\n\nWe compute a rolling average default rate. (Legacy: 4-quarter window)\n\n### Cell 5 (code)\n\n```python\nwindow = FORECAST_WINDOW_QUARTERS\navg_default = defaults['default_rate'].tail(window).mean()\navg_default\n```\n\n### Cell 6 (markdown)\n\n## Step 2 \u2014 Apply macro overlay (if GDP trigger)\n\nPolicy may require a multiplier when GDP growth is below a threshold.\n\nLegacy behavior in this notebook: **does not** apply overlay automatically.\n\n### Cell 7 (code)\n\n```python\ngdp = float(macro.loc[0, 'gdp_growth'])\ngdp\n```\n\n### Cell 8 (code)\n\n```python\nbase_pd_12m = avg_default  # simplification: treat quarterly avg as annualized proxy\n\n# NOTE: Macro overlay intentionally not applied here (knowledge gap)\npd_macro_adjusted = base_pd_12m\npd_macro_adjusted\n```\n\n### Cell 9 (markdown)\n\n## Step 3 \u2014 Stress case and capital impact\n\nWe apply a stress multiplier to PD and compute a simplified CET1 impact.\n\n### Cell 10 (code)\n\n```python\npd_stress = pd_macro_adjusted * STRESS_PD_MULTIPLIER\n\nlatest_cap = capital.tail(1).iloc[0]\ncet1_ratio_start = float(latest_cap['cet1_ratio'])\ncet1_capital = float(latest_cap['cet1_capital'])\nrwa = float(latest_cap['rwa'])\n\n# Simplified loss = sum(EAD * LGD * PD)\nloss_base = (cohorts['exposure_ead'] * cohorts['lgd']).sum() * pd_macro_adjusted\nloss_stress = (cohorts['exposure_ead'] * cohorts['lgd']).sum() * pd_stress\n\ncet1_capital_base = cet1_capital - loss_base\ncet1_capital_stress = cet1_capital - loss_stress\n\ncet1_ratio_base = cet1_capital_base / rwa\ncet1_ratio_stress = cet1_capital_stress / rwa\n\ncet1_ratio_start, cet1_ratio_base, cet1_ratio_stress\n```\n\n### Cell 11 (markdown)\n\n## Step 4 \u2014 Risk-adjusted NPV (toy valuation)\n\nWe compute a simple risk-adjusted NPV of the portfolio cashflows.\n\n### Cell 12 (code)\n\n```python\nannual_cashflow = 1.15e9  # placeholder\nyears = 5\ndiscount_factors = np.array([(1+DISCOUNT_RATE)**t for t in range(1, years+1)])\n\n# Risk adjustment: reduce cashflow by expected loss proportion\nexpected_loss_prop = pd_macro_adjusted * 0.7  # heuristic\nadj_cashflow = annual_cashflow * (1 - expected_loss_prop)\nnpv = (adj_cashflow / discount_factors).sum()\nnpv\n```\n\n### Cell 13 (markdown)\n\n## Step 5 \u2014 Output report row\n\n### Cell 14 (code)\n\n```python\nout = {\n    'as_of_quarter': AS_OF_QUARTER,\n    'forecast_window_quarters_used': FORECAST_WINDOW_QUARTERS,\n    'gdp_growth': gdp,\n    'pd_base_12m': float(pd_macro_adjusted),\n    'pd_stress_12m': float(pd_stress),\n    'cet1_ratio_start': float(cet1_ratio_start),\n    'cet1_ratio_base': float(cet1_ratio_base),\n    'cet1_ratio_stress': float(cet1_ratio_stress),\n    'discount_rate_used': float(DISCOUNT_RATE),\n    'risk_adjusted_npv': float(npv),\n}\n\ndf_out = pd.DataFrame([out])\ndf_out\n```\n\n### Cell 15 (code)\n\n```python\nout_path = Path('analysis') / 'current_run_output.csv'\ndf_out.to_csv(out_path, index=False)\nprint('Wrote', out_path)\n```\n",
+  "references": [
+    "sqlite3",
+    "pandas",
+    "numpy",
+    "pathlib",
+    "data",
+    "analysis",
+    "portfolio_risk.db",
+    "risk_policy_v3_2.docx",
+    "alice_past_runs_and_sensitivity.xlsx",
+    "current_run_output.csv"
+  ],
+  "warnings": []
+}

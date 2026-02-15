@@ -1,0 +1,13 @@
+{
+  "file_id": "risk_policy_v3_2.docx",
+  "file_path": "/Users/magnus/git/golden_gate/data/risk_policy_v3_2.docx",
+  "file_type": "docx",
+  "metadata": {
+    "paragraph_count": 14,
+    "table_count": 0,
+    "headings": []
+  },
+  "content": "**Enterprise Risk Policy \u2014 v3.2**\n\nEnterprise Risk Policy \u2014 Version 3.2 (Effective: 2025-11-01)\n\n1. Forecasting Window Requirement\n\nRisk forecasts must be computed using a 12-quarter rolling historical default rate for the relevant portfolio (unless explicitly waived by the CRO in writing).\n\n2. Macro Overlay Trigger\n\nIf forecasted GDP growth for the as-of quarter is below 1.5%, apply a macro overlay multiplier of 1.15 to the base default forecast.\n\n3. Capital Ratio Requirement\n\nPost-forecast CET1 ratio must not fall below 12.0% in the base case, and must be evaluated under the stress scenario.\n\n4. Escalation Threshold\n\nIf projected 12-month default rate exceeds 6.0% (after macro overlay), escalation to the Risk Committee is required.\n\n5. Stress Scenario Specification\n\nStress case must apply a PD multiplier of 1.15 (i.e., +15%) and recompute post-forecast CET1 under stress.\n\n6. Approved Discount Rate (Risk-adjusted NPV)\n\nApproved discount rate for risk-adjusted NPV calculations is 8.5% unless otherwise specified by Finance Policy.",
+  "references": [],
+  "warnings": []
+}
