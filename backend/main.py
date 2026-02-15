@@ -11,6 +11,14 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
+
+# Load .env into os.environ before any module (e.g. data_delivery.kg) creates OpenAI()
+from dotenv import load_dotenv
+
+_root = Path(__file__).resolve().parent.parent
+load_dotenv(_root / ".env")
+load_dotenv(_root.parent / ".env")
 
 import uvicorn
 from fastapi import FastAPI

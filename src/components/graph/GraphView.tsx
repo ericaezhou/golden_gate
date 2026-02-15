@@ -16,6 +16,8 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 import dagre from "dagre";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 /* ---------------- Typography ---------------- */
 
 const TEXT_NODE = "#475569";      // 节点内部文字（slate-600）
@@ -52,6 +54,27 @@ type KG = {
   nodes: KGNode[];
   edges: KGEdge[];
 };
+
+/** API response: { session_id, kg: { nodes?, edges? } } */
+function normalizeKg(apiKg: { nodes?: unknown[]; edges?: unknown[] } | null): KG {
+  if (!apiKg || !Array.isArray(apiKg.nodes)) return { nodes: [], edges: [] };
+  const nodes: KGNode[] = (apiKg.nodes as any[]).map((n) => ({
+    id: n.id ?? String(n.id),
+    type: n.type ?? "concept",
+    name: n.name ?? n.label ?? n.id ?? "",
+    evidence: Array.isArray(n.evidence) ? n.evidence : [],
+    center: n.center !== false,
+  }));
+  const edges: KGEdge[] = Array.isArray(apiKg.edges)
+    ? (apiKg.edges as any[]).map((e) => ({
+        source: e.source ?? "",
+        target: e.target ?? "",
+        type: e.type ?? e.label ?? "references",
+        evidence: Array.isArray(e.evidence) ? e.evidence : [],
+      }))
+    : [];
+  return { nodes, edges };
+}
 
 /* ---------------- Color Palette ---------------- */
 
@@ -159,8 +182,14 @@ function KGNodeView({ data }: NodeProps) {
 
 /* ---------------- Main Component ---------------- */
 
-export default function GraphView() {
+type GraphViewProps = {
+  sessionId: string | null;
+};
+
+export default function GraphView({ sessionId }: GraphViewProps) {
   const [kg, setKg] = useState<KG | null>(null);
+  const [kgLoading, setKgLoading] = useState(false);
+  const [kgError, setKgError] = useState<string | null>(null);
   const [selected, setSelected] = useState<KGNode | null>(null);
   const [expandedCenterId, setExpandedCenterId] = useState<string | null>(null);
   const [direction, setDirection] = useState<"LR" | "TB">("LR");
@@ -171,11 +200,27 @@ export default function GraphView() {
   const nodeTypes = useMemo(() => ({ kgNode: KGNodeView }), []);
 
   useEffect(() => {
-    fetch("/kg.json")
-      .then((r) => r.json())
-      .then(setKg)
-      .catch(() => setKg({ nodes: [], edges: [] }));
-  }, []);
+    if (!sessionId) {
+      setKg({ nodes: [], edges: [] });
+      setKgError(null);
+      return;
+    }
+    setKgLoading(true);
+    setKgError(null);
+    fetch(`${API_BASE}/api/session/${sessionId}/kg`)
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json();
+      })
+      .then((data: { session_id?: string; kg?: { nodes?: unknown[]; edges?: unknown[] } }) => {
+        setKg(normalizeKg(data?.kg ?? null));
+      })
+      .catch((e) => {
+        setKg({ nodes: [], edges: [] });
+        setKgError(e instanceof Error ? e.message : "Failed to load knowledge graph");
+      })
+      .finally(() => setKgLoading(false));
+  }, [sessionId]);
 
   const filteredKG = useMemo(() => {
     if (!kg) return null;
@@ -219,6 +264,26 @@ export default function GraphView() {
     setNodes(laidOut.nodes);
     setEdges(laidOut.edges);
   }, [filteredKG, direction]);
+
+  if (kgLoading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: 12 }}>
+        <div style={{ width: 40, height: 40, border: "4px solid #e2e8f0", borderTopColor: "#f59e0b", borderRadius: "50%" }} />
+        <p style={{ color: "#64748b" }}>Loading knowledge graph...</p>
+      </div>
+    );
+  }
+
+  if (kgError) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: 12 }}>
+        <p style={{ color: "#dc2626" }}>{kgError}</p>
+        {sessionId && (
+          <a href={`/onboarding?session=${sessionId}`} style={{ color: "#f59e0b", fontWeight: 600 }}>← Onboarding Narrative</a>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", height: "100vh" }}>

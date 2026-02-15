@@ -210,4 +210,3 @@ Return strictly valid JSON following the provided schema.
     with open("kg.txt", "w") as f:
         f.write(resp.output_text)
     return json.loads(resp.output_text)  # JSON string
-

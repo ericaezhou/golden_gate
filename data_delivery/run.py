@@ -1,14 +1,17 @@
-from openai import OpenAI
-from kg import extract_kg_with_evidence
-from hash import normalize_and_hash_evidence
-from neo4j_ import upsert_neo4j_with_evidence
 import json
-import sys
 import os
+import sys
+
+from openai import OpenAI
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Relative imports so this module works when loaded via backend (e.g. backend.routes.session)
+from .kg import extract_kg_with_evidence
+from .hash import normalize_and_hash_evidence
+from .neo4j_ import upsert_neo4j_with_evidence
+
 from backend.parse_cli import parse_file
 
-
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def build_and_store_kg(project_context: str, interview_transcript: str):
     client = OpenAI()
@@ -38,17 +41,49 @@ def build_interview_transcript(interview_transcript_path: str) -> str:
         interview_transcript = f.read()
     return interview_transcript
 
-def build_kg(interview_summary:str, parsed_directory: str = "output/parsed") -> str:
+def _file_path_from_parsed(file_content: dict, fallback_name: str) -> str:
+    """Path or name for a parsed file — supports both data_delivery and backend session format."""
+    return (
+        file_content.get("file_path")
+        or file_content.get("file_name")
+        or file_content.get("file_id")
+        or fallback_name
+    )
+
+
+def _content_from_parsed(file_content: dict) -> str:
+    """Text content for KG — supports both data_delivery and backend session format."""
+    if "content" in file_content:
+        return str(file_content["content"])
+    parsed = file_content.get("parsed_content")
+    if isinstance(parsed, dict) and "content" in parsed:
+        return str(parsed["content"])
+    if isinstance(parsed, dict):
+        return json.dumps(parsed, indent=0, default=str, ensure_ascii=False)
+    return str(parsed) if parsed else ""
+
+
+def build_kg(interview_summary: str, parsed_directory: str = "output/parsed"):
     project_context = ""
+    if not os.path.isdir(parsed_directory):
+        return {"nodes": [], "edges": []}
     for file in os.listdir(parsed_directory):
-        if file.endswith(".json"):
+        if not file.endswith(".json"):
+            continue
+        try:
             with open(os.path.join(parsed_directory, file), "r") as f:
                 file_content = json.load(f)
-                project_context += f"<<<FILE path='{file_content['file_path']}'>>>"
-                project_context += str(file_content['content'])
-                project_context += "<<</FILE>>>\n"
+            if not isinstance(file_content, dict):
+                continue
+            path = _file_path_from_parsed(file_content, file)
+            content = _content_from_parsed(file_content)
+            project_context += f"<<<FILE path='{path}'>>>\n{content}\n<<</FILE>>>\n"
+        except (KeyError, json.JSONDecodeError, OSError) as e:
+            continue
+    if not project_context.strip():
+        return {"nodes": [], "edges": []}
     kg_json = build_and_store_kg(project_context, interview_summary)
-    with open(f"public/kg.json", "w") as f:
+    with open("public/kg.json", "w") as f:
         json.dump(kg_json, f)
     return kg_json
 

@@ -3,11 +3,24 @@
 Usage:
     from backend.config import settings
     settings.OPENAI_API_KEY  # str
+
+Loads .env from project root and from ../.env (parent dir) so OPENAI_API_KEY
+is set before any module (e.g. data_delivery) creates an OpenAI client.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+# Project root = directory containing backend/ (e.g. golden_gate)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Load .env from project root and from parent (../.env); later files override
+_ENV_FILES = [
+    _PROJECT_ROOT / ".env",
+    _PROJECT_ROOT.parent / ".env",
+]
 
 
 class Settings(BaseSettings):
@@ -17,7 +30,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
 
     # --- LLM settings ---
-    LLM_MODEL: str = "gpt-5.2"
+    LLM_MODEL: str = "gpt-5-mini"
     LLM_TEMPERATURE: float = 0.2
     LLM_MAX_TOKENS: int = 4096
 
@@ -39,7 +52,10 @@ class Settings(BaseSettings):
     PORT: int = 8000
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {
+        "env_file": [str(p) for p in _ENV_FILES if p.exists()] or [".env"],
+        "env_file_encoding": "utf-8",
+    }
 
 
 settings = Settings()

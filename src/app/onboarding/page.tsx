@@ -318,17 +318,30 @@ function OnboardingContent() {
 
         {/* Actions */}
         <div className="text-center space-y-3">
-          <a
-            href={`/handoff?session=${sessionId}`}
-            className="inline-block px-8 py-3 bg-amber-600 text-white font-semibold rounded-lg
-                       hover:bg-amber-700 transition-colors shadow-md
-                       focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
-          >
-            Continue to Handoff / Package →
-          </a>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <a
+              href={`/handoff?session=${sessionId}`}
+              className="inline-block px-8 py-3 bg-amber-600 text-white font-semibold rounded-lg
+                         hover:bg-amber-700 transition-colors shadow-md
+                         focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+            >
+              Continue to Handoff / Package →
+            </a>
+            <a
+              href={`/graph?session=${sessionId}`}
+              className="inline-block px-8 py-3 bg-white text-amber-600 font-semibold rounded-lg
+                         border-2 border-amber-500 hover:bg-amber-50 transition-colors shadow-md
+                         focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+            >
+              View Knowledge Graph →
+            </a>
+          </div>
           <div className="flex gap-4 justify-center flex-wrap text-sm">
             <a href={`/interview-summary?session=${sessionId}`} className="text-gray-500 hover:text-gray-700 underline">
               Interview Summary
+            </a>
+            <a href={`/graph?session=${sessionId}`} className="text-gray-500 hover:text-gray-700 underline">
+              Knowledge Graph
             </a>
             <a href="/" className="text-gray-500 hover:text-gray-700 underline">
               Home

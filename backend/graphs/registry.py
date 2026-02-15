@@ -1,12 +1,11 @@
 """Graph registry — compiled graphs with checkpointers.
 
-Provides singleton access to the compiled offboarding graph backed by
-an in-memory checkpointer.  Both the offboarding and interview routes
-share the same graph instance so that interrupt()/Command(resume=...)
+Provides singleton access to the compiled offboarding and onboarding
+graphs backed by in-memory checkpointers so that interrupt()/Command(resume=...)
 works across HTTP calls.
 
 Usage:
-    from backend.graphs.registry import get_offboarding_graph
+    from backend.graphs.registry import get_offboarding_graph, get_onboarding_graph
     graph = get_offboarding_graph()
     config = {"configurable": {"thread_id": session_id}}
     async for chunk in graph.astream(initial_state, config): ...
@@ -27,11 +26,14 @@ from backend.nodes.global_summarize import global_summarize
 from backend.nodes.interview import interview_loop
 from backend.nodes.parse_files import parse_files
 from backend.nodes.reconcile_questions import reconcile_questions
+from backend.graphs.onboarding_graph import build_onboarding_graph as _build_onboarding_graph
 from backend.graphs.subgraphs.file_deep_dive import file_deep_dive_subgraph
 
 # Singleton instances
 _checkpointer: MemorySaver | None = None
 _full_graph = None
+_onboarding_checkpointer: MemorySaver | None = None
+_onboarding_graph = None
 
 
 def _fan_out_deep_dives(state: OffboardingState) -> list[Send]:
@@ -97,3 +99,24 @@ def get_offboarding_graph():
 
     _full_graph = builder.compile(checkpointer=get_checkpointer())
     return _full_graph
+
+
+def get_onboarding_checkpointer() -> MemorySaver:
+    """Return the in-memory checkpointer for the onboarding graph (singleton)."""
+    global _onboarding_checkpointer
+    if _onboarding_checkpointer is None:
+        _onboarding_checkpointer = MemorySaver()
+    return _onboarding_checkpointer
+
+
+def get_onboarding_graph():
+    """Return the compiled onboarding graph with checkpointer (singleton).
+
+    Used by POST /api/onboarding/{session_id}/ask so qa_loop interrupt/resume
+    works and chat_history is persisted per session.
+    """
+    global _onboarding_graph
+    if _onboarding_graph is not None:
+        return _onboarding_graph
+    _onboarding_graph = _build_onboarding_graph(checkpointer=get_onboarding_checkpointer())
+    return _onboarding_graph

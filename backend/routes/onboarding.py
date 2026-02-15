@@ -1,12 +1,12 @@
 """Routes: onboarding — narrative, QA, knowledge graph.
 
-These endpoints serve the new-hire experience.  They read from artifacts
-persisted by the offboarding pipeline and call LLMs directly (no need
-to run the onboarding graph for simple request-response QA).
+These endpoints serve the new-hire experience.  Narrative and knowledge-graph
+read from artifacts; QA uses the onboarding graph's qa_loop (interrupt/resume)
+so chat_history is persisted per session.
 
 Endpoints:
     GET  /api/onboarding/{session_id}/narrative
-    POST /api/onboarding/{session_id}/ask
+    POST /api/onboarding/{session_id}/ask   (uses qa_loop in onboarding graph)
     GET  /api/onboarding/{session_id}/knowledge-graph
 """
 
@@ -16,8 +16,10 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from langgraph.types import Command
 from pydantic import BaseModel
 
+from backend.graphs.registry import get_onboarding_graph
 from backend.services.llm import call_llm
 from backend.services.storage import SessionStorage
 
@@ -165,19 +167,45 @@ async def get_narrative(session_id: str) -> dict[str, Any]:
     }
 
 
+def _is_at_qa_interrupt(graph_state) -> bool:
+    """True if the onboarding graph is paused at qa_loop's interrupt()."""
+    if not graph_state:
+        return False
+    if hasattr(graph_state, "tasks"):
+        for task in graph_state.tasks:
+            if hasattr(task, "interrupts") and task.interrupts:
+                return True
+    return False
+
+
+def _build_onboarding_initial_state(session_id: str, store: SessionStorage) -> dict[str, Any]:
+    """Build initial state for the onboarding graph (narrative + qa_loop)."""
+    knowledge_base = _load_knowledge_base(store)
+    package = {}
+    if store.exists("onboarding_package/package.json"):
+        package = store.load_json("onboarding_package/package.json")
+    return {
+        "session_id": session_id,
+        "onboarding_package": package,
+        "qa_system_prompt": knowledge_base or "",
+        "chat_history": [],
+        "narrative": "",
+        "current_mode": "narrative",
+    }
+
+
 @router.post("/{session_id}/ask")
 async def ask_question(
     session_id: str,
     body: QARequest,
 ) -> dict[str, Any]:
-    """Answer a new hire's question using system-prompt context.
+    """Answer a new hire's question via the onboarding graph's qa_loop.
 
-    Uses the deep dives + interview summary as the LLM system prompt.
-    No vector DB — the entire knowledge base fits in the context window.
+    Uses the onboarding LangGraph: runs until qa_loop interrupt, resumes with
+    the question, then returns the last assistant message. Chat history
+    is persisted in graph state (checkpointer) so multi-turn context is kept.
     """
     store = SessionStorage(session_id)
-
-    # Load knowledge base
     knowledge_base = _load_knowledge_base(store)
     if not knowledge_base:
         raise HTTPException(
@@ -185,11 +213,42 @@ async def ask_question(
             detail="No knowledge base found. Run the offboarding pipeline first.",
         )
 
-    system_prompt = QA_SYSTEM_PROMPT_TEMPLATE.format(knowledge_base=knowledge_base)
+    graph = get_onboarding_graph()
+    config = {"configurable": {"thread_id": session_id}}
+    graph_state = graph.get_state(config)
 
-    logger.info("QA question for %s: %s", session_id, body.question[:100])
+    # If graph never started or not at qa_loop interrupt, run from START until interrupt
+    if not graph_state.values or not _is_at_qa_interrupt(graph_state):
+        initial_state = _build_onboarding_initial_state(session_id, store)
+        async for _ in graph.astream(initial_state, config):
+            pass
+        graph_state = graph.get_state(config)
+        if not _is_at_qa_interrupt(graph_state):
+            raise HTTPException(
+                status_code=500,
+                detail="Onboarding graph did not reach QA interrupt.",
+            )
 
-    answer = await call_llm(system_prompt, body.question)
+    # Resume with the user's question
+    logger.info("QA question for %s (via qa_loop): %s", session_id, body.question[:100])
+    async for _ in graph.astream(
+        Command(resume=body.question),
+        config,
+        stream_mode="updates",
+    ):
+        pass
+
+    # Get the new state and extract the last assistant reply
+    graph_state = graph.get_state(config)
+    chat_history = (graph_state.values or {}).get("chat_history", [])
+    answer = ""
+    for msg in reversed(chat_history):
+        role = getattr(msg, "type", None) or (msg.get("role") if isinstance(msg, dict) else None)
+        if role in ("assistant", "ai"):
+            answer = getattr(msg, "content", None) if not isinstance(msg, dict) else msg.get("content", "")
+            if answer is None:
+                answer = ""
+            break
 
     return {
         "session_id": session_id,

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
-
+import os
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -159,16 +159,30 @@ async def qa_loop(state: OnboardingState) -> dict:
         else:
             # Fallback: assemble from individual files
             sections = []
-            if store.exists("deep_dive_corpus.txt"):
-                sections.append("== FILE ANALYSIS ==\n" + store.load_text("deep_dive_corpus.txt"))
-            elif store.exists("deep_dive_corpus.json"):
-                data = store.load_json("deep_dive_corpus.json")
-                sections.append("== FILE ANALYSIS ==\n" + data.get("corpus", ""))
+            if os.path.exists(os.path.join(store.root, "deep_dives")):
+                for file in os.listdir(os.path.join(store.root, "deep_dives")):
+                    if file.endswith(".json"):
+                        with open(os.path.join(store.root, "deep_dives", file), "r") as f:
+                            data = json.load(f)
+                            sections.append(data.get("file_purpose_summary", ""))
+                            sections.append(data.get("key_mechanics", ""))
+                            sections.append(data.get("fragile_points", ""))
+                            sections.append(data.get("at_risk_knowledge", ""))
+                            sections.append(data.get("questions", ""))
+                            sections.append(data.get("cumulative_summary", ""))
             if store.exists("interview/interview_summary.txt"):
-                sections.append("== INTERVIEW SUMMARY ==\n" + store.load_text("interview/interview_summary.txt"))
+                sections.append(store.load_text("interview/interview_summary.txt"))
             if store.exists("global_summary.json"):
                 data = store.load_json("global_summary.json")
-                sections.append("== GLOBAL SUMMARY ==\n" + data.get("global_summary", ""))
+                sections.append(data.get("global_summary", ""))
+            if store.exists("question_backlog.json"):
+                data = store.load_json("question_backlog.json")
+                sections.append(data.get("question_backlog", ""))
+            if os.path.exists('data/kg.json'):
+                with open('data/kg.json', 'r') as f:
+                    data = json.load(f)
+                    sections.append(data.get("kg", ""))
+
             knowledge_base = "\n\n".join(sections) if sections else "(No knowledge base available)"
 
     # Build the system prompt
@@ -209,8 +223,12 @@ async def qa_loop(state: OnboardingState) -> dict:
 # ------------------------------------------------------------------
 # Build the graph
 # ------------------------------------------------------------------
-def build_onboarding_graph():
-    """Build and compile the onboarding StateGraph."""
+def build_onboarding_graph(checkpointer=None):
+    """Build and compile the onboarding StateGraph.
+
+    If checkpointer is provided (e.g. MemorySaver), the graph can persist
+    state across HTTP calls so qa_loop interrupt/resume works.
+    """
     builder = StateGraph(OnboardingState)
 
     builder.add_node("generate_narrative", generate_narrative)
@@ -222,4 +240,6 @@ def build_onboarding_graph():
     builder.add_edge("qa_loop", "qa_loop")  # loop back for next question
     # Knowledge graph is NOT a graph node — generated on-demand via API
 
+    if checkpointer is not None:
+        return builder.compile(checkpointer=checkpointer)
     return builder.compile()
