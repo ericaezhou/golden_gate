@@ -1,9 +1,33 @@
+'use client'
+
+import { useState } from 'react'
+
 interface PrioritySidebarProps {
   priorities: string[]
   isComplete: boolean
 }
 
+/** Max chars to show before truncating a fact */
+const TRUNCATE_AT = 120
+/** Show this many facts expanded by default */
+const SHOW_EXPANDED = 5
+
 export function PrioritySidebar({ priorities, isComplete }: PrioritySidebarProps) {
+  const [expandedFacts, setExpandedFacts] = useState<Set<number>>(new Set())
+  const [showAll, setShowAll] = useState(false)
+
+  const displayFacts = showAll ? priorities : priorities.slice(0, SHOW_EXPANDED)
+  const hasMore = priorities.length > SHOW_EXPANDED
+
+  const toggleFact = (idx: number) => {
+    setExpandedFacts(prev => {
+      const next = new Set(prev)
+      if (next.has(idx)) next.delete(idx)
+      else next.add(idx)
+      return next
+    })
+  }
+
   return (
     <aside className="w-80 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
@@ -16,26 +40,66 @@ export function PrioritySidebar({ priorities, isComplete }: PrioritySidebarProps
 
       {/* Extracted Facts */}
       <div className="flex-1 p-6 overflow-y-auto">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Extracted Facts
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Extracted Facts
+          </h3>
+          {priorities.length > 0 && (
+            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+              {priorities.length}
+            </span>
+          )}
+        </div>
 
         {priorities.length === 0 ? (
           <p className="text-sm text-gray-400 italic">
             Facts will appear as you answer questions...
           </p>
         ) : (
-          <ul className="space-y-2">
-            {priorities.map((fact, index) => (
-              <li
-                key={index}
-                className="flex items-start gap-2 text-sm text-gray-700 animate-fadeIn"
+          <>
+            <ul className="space-y-2">
+              {displayFacts.map((fact, index) => {
+                const isLong = fact.length > TRUNCATE_AT
+                const isExpanded = expandedFacts.has(index)
+                const displayText = isLong && !isExpanded
+                  ? fact.slice(0, TRUNCATE_AT) + '...'
+                  : fact
+
+                return (
+                  <li
+                    key={index}
+                    className="flex items-start gap-2 text-sm text-gray-700 animate-fadeIn"
+                  >
+                    <span className="text-green-500 mt-0.5 flex-shrink-0 text-xs">&#10003;</span>
+                    <div className="min-w-0">
+                      <span className="text-xs leading-relaxed">{displayText}</span>
+                      {isLong && (
+                        <button
+                          onClick={() => toggleFact(index)}
+                          className="ml-1 text-xs text-amber-600 hover:text-amber-700 font-medium"
+                        >
+                          {isExpanded ? 'less' : 'more'}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {/* Show more / less toggle */}
+            {hasMore && (
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="mt-3 w-full text-center text-xs text-amber-600 hover:text-amber-700 font-medium py-2 border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
               >
-                <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
-                <span>{fact}</span>
-              </li>
-            ))}
-          </ul>
+                {showAll
+                  ? 'Show fewer facts'
+                  : `Show all ${priorities.length} facts (+${priorities.length - SHOW_EXPANDED} more)`
+                }
+              </button>
+            )}
+          </>
         )}
       </div>
 

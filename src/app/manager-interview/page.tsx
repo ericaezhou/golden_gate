@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, Suspense } from 'react'
+import { useEffect, useRef, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ChatMessage, TypingIndicator, PrioritySidebar } from './components'
+import { ChatMessage, TypingIndicator, PrioritySidebar, FilePreviewModal } from './components'
 import { useManagerInterview } from './useManagerInterview'
 
 function InterviewContent() {
@@ -25,6 +25,15 @@ function InterviewContent() {
   } = useManagerInterview(sessionId)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // File preview modal state
+  const [previewFile, setPreviewFile] = useState<string | null>(null)
+  const handleFileClick = useCallback((fileName: string) => {
+    setPreviewFile(fileName)
+  }, [])
+  const closePreview = useCallback(() => {
+    setPreviewFile(null)
+  }, [])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -104,7 +113,11 @@ function InterviewContent() {
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-2xl mx-auto space-y-4">
             {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
+              <ChatMessage
+                key={message.id}
+                message={message}
+                onFileClick={handleFileClick}
+              />
             ))}
 
             {isAITyping && <TypingIndicator />}
@@ -172,6 +185,15 @@ function InterviewContent() {
           </div>
         </div>
       </main>
+
+      {/* File Preview Modal */}
+      {previewFile && sessionId && (
+        <FilePreviewModal
+          sessionId={sessionId}
+          fileName={previewFile}
+          onClose={closePreview}
+        />
+      )}
     </div>
   )
 }

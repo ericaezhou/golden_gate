@@ -70,6 +70,10 @@ async def parse_files(state: OffboardingState) -> dict:
             )
             structured_files.append(sf)
 
+    # Persist file_id → original filename mapping for later nodes (interview, etc.)
+    file_id_map = {sf.file_id: sf.file_name for sf in structured_files}
+    store.save_json("file_id_map.json", file_id_map)
+
     return {
         "structured_files": structured_files,
         "status": "parsed",
