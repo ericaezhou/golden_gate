@@ -1,0 +1,10 @@
+Segment,Threshold,Current_Rate,Action_Needed
+Prime,0.03,0.028,None
+Near Prime,0.07,0.082,Review with Alice
+Subprime,???,0.15,Ask Alice for threshold
+Deep Subprime,???,0.28,Ask Alice for threshold
+
+Notes:
+- Thresholds change quarterly based on portfolio - see Alice
+- When to apply overlay: see Alice's process
+- Escalation workflow: see Alice's notes

@@ -1,0 +1,24 @@
+MONTHLY FORECAST PROCESS
+
+1. Run loss_model.py
+2. Review results
+3. Apply overlays (see Alice)
+4. Get approvals:
+   - Small changes: just document
+   - Medium changes: Risk committee meeting
+   - Large changes: Email CFO
+   - Very large: ??? (ask Alice)
+
+5. Update Excel file
+6. Send to board
+
+OVERLAY DECISION:
+- When delinquency increases by ??? percent
+- When cohort variance exceeds ???
+- New products: add ??? percent buffer
+- See Alice for exact numbers
+
+SUPPLIER TIMING:
+- Normal conditions: use 4-quarter lookback
+- Volatile conditions: use 12-quarter lookback
+- Ask Alice when to switch
