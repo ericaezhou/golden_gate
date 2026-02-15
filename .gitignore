@@ -53,10 +53,7 @@ chroma_data/
 # env
 .env
 
-
-
-# __pycache__
-__pycache__/
+# data_delivery
 data_delivery/*.txt
 kg*.json
 kg*.txt
