@@ -2,15 +2,31 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { FileIcon, getFileExt } from './components/FileIcon'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+const extBadgeColors: Record<string, string> = {
+  xlsx: 'bg-green-100 text-green-700',
+  xls: 'bg-green-100 text-green-700',
+  csv: 'bg-green-100 text-green-700',
+  py: 'bg-blue-100 text-blue-700',
+  ipynb: 'bg-orange-100 text-orange-700',
+  sql: 'bg-indigo-100 text-indigo-700',
+  sqlite: 'bg-indigo-100 text-indigo-700',
+  db: 'bg-indigo-100 text-indigo-700',
+  pdf: 'bg-red-100 text-red-700',
+  pptx: 'bg-orange-100 text-orange-700',
+  ppt: 'bg-orange-100 text-orange-700',
+  docx: 'bg-blue-100 text-blue-700',
+  doc: 'bg-blue-100 text-blue-700',
+}
 
 export default function Home() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [files, setFiles] = useState<File[]>([])
   const [projectName, setProjectName] = useState('')
-  const [role, setRole] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +52,6 @@ export default function Home() {
         if (valid.length > 0) {
           setFiles(valid)
           setProjectName('Credit Risk Forecasting')
-          setRole('Risk Analyst')
         }
       } catch {
         // Demo files not available — ignore
@@ -81,7 +96,7 @@ export default function Home() {
     try {
       const formData = new FormData()
       formData.append('project_name', projectName.trim())
-      formData.append('role', role.trim())
+      formData.append('role', '')
       for (const file of files) {
         formData.append('files', file)
       }
@@ -103,77 +118,51 @@ export default function Home() {
     }
   }
 
-  const fileIcon = (name: string) => {
-    const ext = name.split('.').pop()?.toLowerCase()
-    switch (ext) {
-      case 'xlsx': case 'xls': case 'csv': return '📊'
-      case 'py': return '🐍'
-      case 'ipynb': return '📓'
-      case 'sql': case 'sqlite': case 'db': return '🗄️'
-      case 'pdf': return '📕'
-      case 'pptx': case 'ppt': return '📑'
-      case 'docx': case 'doc': return '📄'
-      default: return '📎'
-    }
-  }
-
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
-            Bridge AI
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-10 max-w-2xl w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-amber-600 mb-1">
+            Golden Gate
           </h1>
-          <p className="text-gray-500">
-            Knowledge Capture & Transfer
+          <p className="text-gray-500 text-sm">
+            Offboarding &ndash; Onboarding Agent
           </p>
         </div>
 
         {/* Project Name */}
-        <div className="mb-4">
+        <div className="mb-6">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
             Project Name
           </label>
+          <p className="text-xs text-gray-400 mb-2">The project or workstream being transitioned</p>
           <input
             type="text"
             value={projectName}
             onChange={e => setProjectName(e.target.value)}
             placeholder="e.g. Credit Risk Forecasting"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-
-        {/* Role */}
-        <div className="mb-4">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Role (optional)
-          </label>
-          <input
-            type="text"
-            value={role}
-            onChange={e => setRole(e.target.value)}
-            placeholder="e.g. Risk Analyst"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
           />
         </div>
 
         {/* Drop zone */}
-        <div className="mb-4">
+        <div className="mb-6">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
             Files to Analyze
           </label>
+          <p className="text-xs text-gray-400 mb-2">Upload the outgoing employee&apos;s artefacts and documentation</p>
           <div
             onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
             className={`
-              border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
               transition-colors duration-150
               ${isDragging
-                ? 'border-blue-500 bg-blue-50'
+                ? 'border-amber-500 bg-amber-50'
                 : 'border-gray-300 hover:border-gray-400 bg-gray-50'
               }
             `}
@@ -182,7 +171,7 @@ export default function Home() {
               {isDragging ? 'Drop files here' : 'Drag & drop files or click to browse'}
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              xlsx, py, docx, pdf, pptx, ipynb, sql, csv, txt
+              .xlsx, .py, .docx, .pdf, .pptx, .ipynb, .sql, .csv, .txt
             </p>
             <input
               ref={fileInputRef}
@@ -196,21 +185,36 @@ export default function Home() {
 
         {/* File list */}
         {files.length > 0 && (
-          <div className="mb-4 space-y-2">
-            {files.map(f => (
-              <div key={f.name} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span>{fileIcon(f.name)}</span>
-                  <span className="truncate">{f.name}</span>
-                </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); removeFile(f.name) }}
-                  className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0"
+          <div className="mb-6 space-y-2">
+            {files.map(f => {
+              const ext = getFileExt(f.name)
+              const badgeColor = extBadgeColors[ext] || 'bg-gray-100 text-gray-500'
+              return (
+                <div
+                  key={f.name}
+                  className="flex items-center justify-between text-sm text-gray-700
+                             bg-gray-50 hover:bg-gray-100 px-3 py-2.5 rounded-lg
+                             border border-gray-200 transition-colors group"
                 >
-                  &times;
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileIcon ext={ext} />
+                    <span className="truncate">{f.name}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-mono font-medium ${badgeColor}`}>
+                      .{ext}
+                    </span>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeFile(f.name) }}
+                    className="text-gray-300 hover:text-red-500 ml-2 flex-shrink-0
+                               opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
 
@@ -224,20 +228,20 @@ export default function Home() {
           onClick={handleStartOffboarding}
           disabled={isSubmitting}
           className={`
-            w-full px-8 py-3 font-medium rounded-lg
-            transition-colors duration-150
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            w-full px-8 py-3.5 font-semibold text-base rounded-lg
+            transition-all duration-150
+            focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
             ${isSubmitting
-              ? 'bg-blue-400 text-white cursor-not-allowed'
-              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              : 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 shadow-md hover:shadow-lg'
             }
           `}
         >
           {isSubmitting ? 'Starting...' : 'Start Knowledge Capture'}
         </button>
 
-        <p className="mt-6 text-xs text-gray-400 text-center">
-          AI-powered knowledge transfer for seamless transitions
+        <p className="mt-8 text-xs text-gray-400 text-center">
+          Golden Gate &mdash; AI-powered knowledge transfer for seamless transitions
         </p>
       </div>
     </main>

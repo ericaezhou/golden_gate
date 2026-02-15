@@ -103,7 +103,7 @@ def build_offboarding_graph():
 
 
 def build_deep_dive_only_graph():
-    """Build a truncated graph: parse → deep dives → concatenate → END.
+    """Build a truncated graph: parse → deep dives → concatenate → global_summarize → reconcile → END.
 
     Use this when running without a checkpointer (the full graph requires
     one for interview_loop's interrupt()).
@@ -114,6 +114,8 @@ def build_deep_dive_only_graph():
     builder.add_node("file_deep_dive", file_deep_dive_subgraph)
     builder.add_node("collect_deep_dives", _collect_deep_dives)
     builder.add_node("concatenate_deep_dives", concatenate_deep_dives)
+    builder.add_node("global_summarize", global_summarize)
+    builder.add_node("reconcile_questions", reconcile_questions)
 
     builder.add_edge(START, "parse_files")
     builder.add_conditional_edges(
@@ -123,6 +125,8 @@ def build_deep_dive_only_graph():
     )
     builder.add_edge("file_deep_dive", "collect_deep_dives")
     builder.add_edge("collect_deep_dives", "concatenate_deep_dives")
-    builder.add_edge("concatenate_deep_dives", END)
+    builder.add_edge("concatenate_deep_dives", "global_summarize")
+    builder.add_edge("global_summarize", "reconcile_questions")
+    builder.add_edge("reconcile_questions", END)
 
     return builder.compile()
