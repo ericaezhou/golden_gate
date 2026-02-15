@@ -1,8 +1,14 @@
 """Node: generate_onboarding_package — Step 5 of the offboarding pipeline.
 
 Turns all accumulated knowledge into the final onboarding deliverable.
-Two LLM calls: (5a) build structured knowledge entries from interview
-facts, then (5b) generate the full onboarding document.
+This is the "LLM remix" — it combines deep dive analysis with interview
+insights into a coherent onboarding document.
+
+Two LLM calls:
+  (5a) build structured knowledge entries from interview facts
+  (5b) generate the full onboarding document
+
+Reference: docs/implementation_design.md §4.7, docs/general_design.md Track A
 """
 
 from __future__ import annotations
@@ -76,9 +82,12 @@ and known issues."""
 async def generate_onboarding_package(state: OffboardingState) -> dict:
     """Generate the onboarding package from all prior artifacts.
 
+    This is the "LLM remix": deep dive corpus + interview summary are
+    combined and synthesized into a coherent onboarding document.
+
     Reads from: state["deep_dive_corpus"], state["global_summary"],
-                state["question_backlog"], state["extracted_facts"],
-                state["interview_transcript"]
+                state["interview_summary"], state["question_backlog"],
+                state["extracted_facts"]
     Writes to:  state["onboarding_package"]
     Persists:   onboarding_package/package.json, onboarding_package/onboarding_docs.md
     """
@@ -87,6 +96,7 @@ async def generate_onboarding_package(state: OffboardingState) -> dict:
 
     corpus = state.get("deep_dive_corpus", "")
     global_summary = state.get("global_summary", "")
+    interview_summary = state.get("interview_summary", "")
     backlog: list[Question] = state.get("question_backlog", [])
     facts: list[str] = state.get("extracted_facts", [])
 
@@ -97,6 +107,8 @@ async def generate_onboarding_package(state: OffboardingState) -> dict:
     knowledge_prompt = (
         "Here are the extracted facts from the offboarding interview:\n\n"
         f"{chr(10).join(f'- {f}' for f in facts) if facts else '(no facts extracted)'}\n\n"
+        "Here is the interview summary:\n\n"
+        f"{interview_summary if interview_summary else '(no interview summary)'}\n\n"
         "Here are the answered questions with context:\n\n"
         f"{answered_qs}\n\n"
         "Create structured knowledge entries from these materials."
@@ -115,9 +127,13 @@ async def generate_onboarding_package(state: OffboardingState) -> dict:
     faq_from_qs = _build_faq_from_questions(backlog)
 
     doc_prompt = (
-        "Use the following materials to write the onboarding document:\n\n"
+        "Use the following materials to write the onboarding document.\n"
+        "This should be an LLM-processed remix — synthesize the file analysis "
+        "with the interview insights into a coherent narrative, not just a "
+        "copy-paste of sources.\n\n"
         f"## Global Summary\n{global_summary}\n\n"
-        f"## Per-File Summaries\n{corpus}\n\n"
+        f"## Per-File Deep Dive Analysis\n{corpus}\n\n"
+        f"## Interview Summary\n{interview_summary if interview_summary else '(no interview conducted)'}\n\n"
         f"## Knowledge Entries\n{ke_text}\n\n"
         f"## FAQ from Interview\n{faq_from_qs}\n\n"
         "Write the 5 sections: Abstract, Introduction, Details, FAQ, "
@@ -198,5 +214,14 @@ def _package_to_markdown(pkg: OnboardingPackage) -> str:
     sections.append("## Risks & Gotchas\n")
     for risk in pkg.risks_and_gotchas:
         sections.append(f"- {risk}\n")
+
+    if pkg.knowledge_entries:
+        sections.append("\n## Knowledge Entries\n")
+        for entry in pkg.knowledge_entries:
+            cat = entry.get("category", "uncategorized")
+            title = entry.get("title", "")
+            detail = entry.get("detail", "")
+            sections.append(f"### [{cat}] {title}\n")
+            sections.append(f"{detail}\n")
 
     return "\n".join(sections)

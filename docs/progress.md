@@ -14,10 +14,10 @@
 | Services (LLM, storage) | **Done** | Fully implemented wrappers (embeddings.py removed — MVP uses system prompt) |
 | Graph skeletons | **Done** | Offboarding + onboarding graphs wired with all edges |
 | FastAPI app + routes | **Done** | All endpoints exist with stub responses |
-| Pipeline nodes | **Partial** | 6 of 8 implemented (deep_dive, global_summarize, reconcile, concatenate, parse, build_qa_context done); interview + generate_package need LLM calls |
+| Pipeline nodes | **Partial** | 7 of 8 implemented; only `interview.py` LLM calls remain as TODOs |
 | Route wiring to graphs | **Partial** | `routes/offboarding.py` fully wired (SSE streaming, background task); interview + onboarding routes still stubs |
 | Frontend ↔ backend integration | **TODO** | Frontend still uses mock data |
-| Tests | **Partial** | 6 framework + 16 reconcile + 24 deep dive tests = 46 passing |
+| Tests | **Partial** | 92 tests passing (6 framework + 14 reconcile + 24 deep dive + 26 integration + 22 generate_package) |
 
 ---
 
@@ -98,8 +98,10 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 | File | Tests | Status |
 |------|-------|--------|
 | `tests/test_framework.py` | 6 smoke tests | **All passing** |
-| `tests/test_reconcile_questions.py` | 16 unit tests | **All passing** |
+| `tests/test_reconcile_questions.py` | 14 unit tests | **All passing** |
 | `tests/test_deep_dive.py` | 24 unit tests (multi-pass, prompts, persistence, concatenation, subgraph) | **All passing** |
+| `tests/test_generate_package.py` | 22 unit tests (LLM inputs, output, persistence, edge cases) | **All passing** |
+| `tests/test_integration.py` | 26 integration tests (graph compilation, state flow, dead imports) | **All passing** |
 | `test_parsers.py` | Parser integration tests | **Existing** |
 
 ---
@@ -132,13 +134,9 @@ Fully implemented with LLM-assisted dedup, auto-resolve, reprioritization, and c
   - [ ] LLM call: generate follow-up if answer is vague (max 1 per question)
 - **Reference:** `docs/implementation_design.md` §4.6
 
-#### `nodes/generate_package.py` — Onboarding Package (LLM Remix)
+#### ~~`nodes/generate_package.py`~~ — DONE
 
-- **What exists:** Node signature, markdown formatter, persistence. Returns placeholder package.
-- **What's needed:**
-  - [ ] LLM call: build structured knowledge entries from extracted facts
-  - [ ] LLM call: generate onboarding doc as **remix** of deep_dive_corpus + extracted_facts (not just a summary — synthesize both sources with interview insights enriching the file analysis)
-- **Reference:** `docs/implementation_design.md` §4.7
+Fully implemented: two LLM calls (5a: knowledge entries, 5b: onboarding doc remix). Reads deep_dive_corpus + interview_summary + extracted_facts + global_summary. Produces OnboardingPackage with abstract, intro, details, FAQ, risks, knowledge entries. Persists as JSON + Markdown. 22 unit tests passing.
 
 
 #### ~~`nodes/build_qa_context.py`~~ — DONE
@@ -221,7 +219,7 @@ Each priority can be worked on by different people in parallel since they're dec
 | ~~**B: Global + Reconcile nodes**~~ | — | ~~`nodes/global_summarize.py`, `nodes/reconcile_questions.py`~~ | **DONE** |
 | ~~**B3: QA context node**~~ | — | ~~`nodes/build_qa_context.py`~~ | **DONE** |
 | **C: Interview node LLM calls** | — | `nodes/interview.py` | Loop structure done; needs LLM calls for question rephrasing, fact extraction, confidence |
-| **D: Package generation LLM** | — | `nodes/generate_package.py` | Persistence done; needs LLM calls for knowledge entries + onboarding doc remix |
+| ~~**D: Package generation**~~ | — | ~~`nodes/generate_package.py`~~ | **DONE** |
 | ~~**E1: Offboarding route**~~ | — | ~~`routes/offboarding.py`~~ | **DONE** (SSE streaming, background task) |
 | **E2: Interview + Onboarding routes** | — | `routes/interview.py`, `routes/onboarding.py` | Stubs — need LangGraph interrupt wiring + system-prompt QA |
 | **F: Frontend** | — | `src/app/` pages + knowledge graph visualization (on-demand) | Depends on routes |
