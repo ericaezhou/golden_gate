@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Task, KnowledgeGap } from './mockData'
+import { Task, KnowledgeGap, QuestionItem } from './mockData'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -10,6 +10,9 @@ interface LiveState {
   currentActivity: string | null
   currentFile: string | null
   discoveredGaps: KnowledgeGap[]
+  questions: QuestionItem[]
+  parsedFiles: string[]
+  deepDivedFiles: string[]
   isComplete: boolean
   isRunning: boolean
   error: string | null
@@ -27,12 +30,16 @@ export function useScreeningProgressLive(sessionId: string) {
     currentActivity: 'Connecting to server...',
     currentFile: null,
     discoveredGaps: [],
+    questions: [],
+    parsedFiles: [],
+    deepDivedFiles: [],
     isComplete: false,
     isRunning: true,
     error: null,
   })
 
   const gapCounter = useRef(0)
+  const questionCounter = useRef(0)
 
   useEffect(() => {
     if (!sessionId) return
@@ -69,6 +76,9 @@ export function useScreeningProgressLive(sessionId: string) {
         ...prev,
         currentFile: data.file_name,
         currentActivity: `Parsed ${data.file_name}`,
+        parsedFiles: prev.parsedFiles.includes(data.file_name)
+          ? prev.parsedFiles
+          : [...prev.parsedFiles, data.file_name],
       }))
     })
 
@@ -87,10 +97,14 @@ export function useScreeningProgressLive(sessionId: string) {
 
     es.addEventListener('deep_dive_pass', (e: MessageEvent) => {
       const data = JSON.parse(e.data)
+      const fileName = data.file_name
       setState(prev => ({
         ...prev,
-        currentFile: data.file_name,
-        currentActivity: `Deep dive pass ${data.pass_number} on ${data.file_name}`,
+        currentFile: fileName,
+        currentActivity: `Deep dive pass ${data.pass_number} on ${fileName}`,
+        deepDivedFiles: prev.deepDivedFiles.includes(fileName)
+          ? prev.deepDivedFiles
+          : [...prev.deepDivedFiles, fileName],
       }))
     })
 
@@ -99,14 +113,28 @@ export function useScreeningProgressLive(sessionId: string) {
       gapCounter.current += 1
       const gap: KnowledgeGap = {
         id: `gap-${gapCounter.current}`,
-        title: data.title,
-        description: data.description,
+        text: data.text,
         severity: data.severity || 'medium',
-        discoveredAtTaskId: 'deep_dive',
+        sourceFile: data.source_file || undefined,
       }
       setState(prev => ({
         ...prev,
         discoveredGaps: [...prev.discoveredGaps, gap],
+      }))
+    })
+
+    es.addEventListener('question_discovered', (e: MessageEvent) => {
+      const data = JSON.parse(e.data)
+      questionCounter.current += 1
+      const question: QuestionItem = {
+        id: `q-${questionCounter.current}`,
+        text: data.question_text,
+        sourceFile: data.source_file || '',
+        priority: data.priority || 'P1',
+      }
+      setState(prev => ({
+        ...prev,
+        questions: [...prev.questions, question],
       }))
     })
 
@@ -159,6 +187,8 @@ function _stepLabel(step: string): string {
     case 'deep_dive': return 'Deep dive analysis'
     case 'collect_deep_dives': return 'Collect results'
     case 'concatenate_deep_dives': return 'Concatenate reports'
+    case 'identify_gaps': return 'Identify knowledge gaps'
+    case 'generate_questions': return 'Generate interview questions'
     default: return step.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
 }

@@ -117,17 +117,86 @@ The handoff is clean:
 
 ---
 
+## `interview_loop` (backend/nodes/interview.py)
+
+**Purpose:** Interactive, human-in-the-loop interview that maximizes knowledge extraction through warm, project-aware conversation. The interviewer references specific files/formulas/thresholds from deep dive analysis, remembers and builds on every previous answer, and discovers new knowledge gaps in real time.
+
+### State reads
+| Key | Type | Description |
+|-----|------|-------------|
+| `session_id` | `str` | Session identifier |
+| `question_backlog` | `list[Question]` | Reconciled questions (status=OPEN, P0/P1) |
+| `deep_dive_corpus` | `str` | Used as project context in question rephrasing |
+| `global_summary` | `str` | Used as project context in question rephrasing |
+| `interview_transcript` | `list[InterviewTurn]` | Existing transcript (for resume) |
+| `extracted_facts` | `list[str]` | Existing facts (for resume) |
+
+### State writes
+| Key | Type | Description |
+|-----|------|-------------|
+| `interview_transcript` | `list[InterviewTurn]` | Full transcript of all turns |
+| `extracted_facts` | `list[str]` | All extracted facts (has `_append_list` reducer) |
+| `interview_summary` | `str` | LLM-synthesized narrative summary (by topic, not chronological) |
+| `question_backlog` | `list[Question]` | Updated with `ANSWERED_BY_INTERVIEW` statuses + new follow-ups/discovered Qs |
+| `status` | `str` | Set to `"interview_complete"` |
+| `current_step` | `str` | Set to `"interview_loop"` |
+
+### LLM calls per round (3 calls)
+1. **Select question** (`call_llm_json`): Picks the best next question considering priority AND conversational flow (topical continuity with last answer). Returns `{"selected_question_id": "..."}`.
+2. **Rephrase question** (`call_llm`): Rewrites the raw analytical question conversationally with project context (references specific files, thresholds) and conversation memory (acknowledges previous answer). Returns plain text.
+3. **Extract facts** (`call_llm_json`): Extracts structured facts, assesses confidence (high/medium/low → 0.9/0.6/0.3), generates follow-up for low/medium confidence, and discovers NEW questions revealed by the answer. Returns `{"facts": [...], "confidence": "...", "follow_up": "...", "discovered_questions": [...]}`.
+
+### End-of-interview LLM call
+4. **Generate summary** (`call_llm`): Synthesizes the full transcript into a topical narrative summary (not a chronological Q&A dump). Organized by: decisions & rationale, undocumented rules, dependencies, risks, historical context.
+
+### Dynamic question management
+- **Follow-ups**: Added when confidence is "low" or "medium". Origin=`FOLLOW_UP`, priority=`P0`, inserted into backlog for immediate asking.
+- **Discovered questions**: When an answer reveals NEW knowledge gaps (mentions unknown people, systems, processes), new questions are added to the backlog with origin=`FOLLOW_UP`.
+- Question IDs: follow-ups prefixed `"followup-"`, discovered prefixed `"discovered-"`.
+
+### Termination conditions
+1. No open P0/P1 questions remain
+2. `rounds >= settings.MAX_INTERVIEW_ROUNDS` (default 10)
+3. User explicitly ends via `/api/interview/{session_id}/end`
+
+### Interrupt payload (sent to frontend)
+```json
+{
+  "question_id": "global-abc123",
+  "question_text": "Thanks for explaining that — I noticed in your model that...",
+  "round": 3,
+  "remaining": 5
+}
+```
+
+### Persistence (after every turn)
+- `interview/transcript.json` — full transcript
+- `interview/extracted_facts.json` — all facts
+- `question_backlog.json` — updated backlog
+- `interview/interview_summary.txt` — final summary (end of interview only)
+
+---
+
 ## Interface Contract: `reconcile_questions` → `interview_loop`
 
 - `reconcile_questions` outputs `question_backlog` with status `"questions_ready"`
-- `interview_loop` should read `question_backlog` and filter for `status=OPEN` questions to ask the departing employee
-- After interview, questions should be updated to `status=ANSWERED_BY_INTERVIEW` with `answer` populated
+- `interview_loop` reads `question_backlog` and filters for `status=OPEN` + priority `P0`/`P1`
+- Also reads `deep_dive_corpus` and `global_summary` for project-aware question rephrasing
+- After interview, questions are updated to `status=ANSWERED_BY_INTERVIEW` with `answer` and `confidence` populated
+- New questions may be added to backlog (follow-ups + discovered) with `origin=FOLLOW_UP`
 
 ## Interface Contract: `interview_loop` → `generate_onboarding_package`
 
 - `generate_onboarding_package` reads `extracted_facts` (list of strings, accumulated via `_append_list` reducer)
 - It reads `question_backlog` and filters for `status=ANSWERED_BY_INTERVIEW` to build FAQ content
-- It does NOT read `interview_transcript` directly (only uses `extracted_facts` and answered questions)
+- It reads `interview_summary` (LLM-synthesized narrative) — available for richer onboarding doc generation
+- It does NOT read `interview_transcript` directly
+
+## Interface Contract: `interview_loop` → `build_qa_context`
+
+- `build_qa_context` reads `interview_summary` (the LLM-synthesized narrative, not raw transcript)
+- It reads `extracted_facts` for the structured facts section
+- It reads `question_backlog` for answered questions with their answers
 
 ---
 
