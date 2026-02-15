@@ -125,8 +125,17 @@ async def respond_to_question(
         body.user_response[:100],
     )
 
+    # Snapshot current facts count so we can return only NEW facts
+    store = SessionStorage(session_id)
+    prev_facts: list[str] = []
+    if store.exists("interview/extracted_facts.json"):
+        try:
+            prev_facts = store.load_json("interview/extracted_facts.json")
+        except Exception:
+            pass
+    prev_count = len(prev_facts)
+
     # Resume the graph with the user's response
-    result_state = None
     async for chunk in graph.astream(
         Command(resume=body.user_response),
         config,
@@ -134,12 +143,9 @@ async def respond_to_question(
     ):
         for node_name, state_update in chunk.items():
             logger.info("Interview: node %s completed", node_name)
-            if node_name == "interview_loop":
-                result_state = state_update
 
     # Check if graph is paused again (next question) or finished
     graph_state = graph.get_state(config)
-    store = SessionStorage(session_id)
 
     # Detect pending interrupt (more reliable than checking .next alone)
     has_interrupt = False
@@ -166,14 +172,21 @@ async def respond_to_question(
             "session_id": session_id,
         })
 
+        # Read newly-extracted facts from persisted file
+        all_facts: list[str] = []
+        if store.exists("interview/extracted_facts.json"):
+            try:
+                all_facts = store.load_json("interview/extracted_facts.json")
+            except Exception:
+                pass
+        new_facts = all_facts[prev_count:]  # only facts added this round
+
         return {
             "session_id": session_id,
             "interview_active": True,
             "question": question_data,
-            "facts_extracted": (
-                result_state.get("extracted_facts", [])[-5:]
-                if result_state else []
-            ),
+            "facts_extracted": new_facts,
+            "all_facts": all_facts,
         }
     else:
         # Interview ended — graph continued to package + qa_context
