@@ -14,6 +14,8 @@ offboarding graph.
 from __future__ import annotations
 
 import logging
+import os
+import json
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -113,8 +115,6 @@ async def qa_loop(state: OnboardingState) -> dict:
           See docs/implementation_design.md §5.3.
     """
     session_id = state["session_id"]
-    store = SessionStorage(session_id)
-    session_root = store.get_session_path()
 
     # Wait for user question
     user_input = interrupt({
@@ -124,23 +124,22 @@ async def qa_loop(state: OnboardingState) -> dict:
     # load global summary and interview summary
     interview_summary_context = ""
     text_summary_context = ""
-    if store.exists("summary/global_summary.txt"):
-        text_summary_context = store.load_text("summary/global_summary.txt")
-    if store.exists("interview/interview_summary.txt"):
-        interview_summary_context = store.load_text("interview/interview_summary.txt")
+    if os.path.exists("../../output/text_summary.txt"):
+        text_summary_context = open("../../output/text_summary.txt", "r").read()
+    if os.path.exists("../../output/interview_summary.txt"):
+        interview_summary_context = open("../../output/interview_summary.txt", "r").read()
     
     # load knowledge graph
     kg_context = "No KG available."
-    if store.exists("knowledge_graph.json"):
-        kg_data = store.load_json("knowledge_graph.json")
+    if os.path.exists("../../output/knowledge_graph.json"):
+        kg_data = json.load(open("../../output/knowledge_graph.json", "r"))
         kg_context = str(kg_data)
     
     # read deep dive file
-    if store.exists("deep_dives/deep_dives.txt"):
-        deep_dive_context = store.load_text("deep_dives/deep_dives.txt")
+    if os.path.exists("../../output/deep_dives.txt"):
+        deep_dive_context = open("../../output/deep_dives.txt", "r").read()
     else:
         deep_dive_context = ""
-
 
     # --- Placeholder retrieval + answer ---
     formatted_prompt = QA_SYSTEM_PROMPT.format(
