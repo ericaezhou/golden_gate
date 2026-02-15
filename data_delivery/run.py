@@ -6,8 +6,6 @@ from openai import OpenAI
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # Relative imports so this module works when loaded via backend (e.g. backend.routes.session)
 from .kg import extract_kg_with_evidence
-from .hash import normalize_and_hash_evidence
-from .neo4j_ import upsert_neo4j_with_evidence
 
 from backend.parse_cli import parse_file
 

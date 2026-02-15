@@ -268,6 +268,7 @@ async def interview_loop(state: OffboardingState) -> dict:
     project_context = _build_project_context(corpus, global_summary)
 
     round_num = len(transcript)
+    open_qs: list = []
 
     while round_num < settings.MAX_INTERVIEW_ROUNDS:
         # --- DEMO MODE: Use hardcoded questions for first 2 rounds only ---
@@ -320,13 +321,14 @@ async def interview_loop(state: OffboardingState) -> dict:
                     break
 
         # Pause and wait for user response via frontend
+        remaining = (len(open_qs) - 1) if open_qs else 0
         user_response = interrupt({
             "question_id": next_q.question_id,
             "question_text": question_text,
             "source_file": source_display,
             "raw_question": next_q.question_text,
             "round": round_num + 1,
-            "remaining": len(open_qs) - 1,
+            "remaining": remaining,
         })
 
         # Check for end signal from /end endpoint

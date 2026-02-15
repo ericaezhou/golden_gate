@@ -1,8 +1,6 @@
 import json
 from openai import OpenAI
 import os
-import networkx as nx
-import matplotlib.pyplot as plt
 from time import time
 
 
