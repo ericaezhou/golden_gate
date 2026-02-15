@@ -51,6 +51,8 @@ Focus on questions that ONLY emerge from cross-file analysis:
 2. Workflow dependencies (which file's output feeds another)
 3. Missing context (why a value was chosen, where manual overrides happen)
 4. Undocumented decision criteria that span multiple artifacts
+
+IMPORTANT: All questions must be specific and closed-ended — they should ask about a concrete value, decision, threshold, process, or fact that has a definitive answer. Never ask open-ended questions like "Can you explain..." or "What is your approach to...". Instead ask things like "What is the threshold value for X?" or "Which team receives the output of Y?" or "How often is the Z override applied?".
 """
 
 
@@ -83,8 +85,9 @@ async def global_summarize(state: OffboardingState) -> dict:
         "3. Identify missing context (why a value was chosen, where manual "
         "overrides happen).\n"
         "4. Produce a global_summary covering the project holistically.\n"
-        "5. Generate NEW questions that only emerge from cross-file analysis. "
-        "For each question, note which files are involved."
+        "5. Generate NEW specific, closed-ended questions that only emerge from "
+        "cross-file analysis. Each question must target a concrete fact, value, "
+        "or decision — not open-ended exploration. Note which files are involved."
     )
 
     result = await call_llm_json(SYSTEM_PROMPT, user_prompt)

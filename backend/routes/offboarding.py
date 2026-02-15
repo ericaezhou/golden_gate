@@ -20,6 +20,7 @@ from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import FileResponse
 from sse_starlette.sse import EventSourceResponse
 
+from backend.config import settings
 from backend.graphs.offboarding_graph import build_deep_dive_only_graph
 from backend.services.storage import SessionStorage, create_session
 
@@ -50,6 +51,8 @@ async def _run_pipeline(
     store = SessionStorage(session_id)
     seen_files_parsed: set[str] = set()
     seen_deep_dives: set[str] = set()
+    accumulated_reports: list[dict] = []
+    file_id_to_name: dict[str, str] = {}  # hashed file_id → original filename
 
     try:
         await queue.put({
@@ -70,6 +73,9 @@ async def _run_pipeline(
                     for f in files:
                         file_name = f.get("file_name", "") if isinstance(f, dict) else getattr(f, "file_name", "")
                         file_type = f.get("file_type", "") if isinstance(f, dict) else getattr(f, "file_type", "")
+                        fid = f.get("file_id", "") if isinstance(f, dict) else getattr(f, "file_id", "")
+                        if fid and file_name:
+                            file_id_to_name[fid] = file_name
                         if file_name and file_name not in seen_files_parsed:
                             seen_files_parsed.add(file_name)
                             await queue.put({
@@ -98,37 +104,21 @@ async def _run_pipeline(
                     reports = state_update.get("deep_dive_reports", [])
                     for report in reports:
                         r = report if isinstance(report, dict) else report.model_dump()
+                        accumulated_reports.append(r)
                         file_id = r.get("file_id", "")
                         pass_number = r.get("pass_number", 0)
                         key = f"{file_id}_pass{pass_number}"
                         if key not in seen_deep_dives:
                             seen_deep_dives.add(key)
+                            original_name = file_id_to_name.get(file_id, file_id)
                             await queue.put({
                                 "event": "deep_dive_pass",
                                 "data": json.dumps({
-                                    "file_name": file_id,
+                                    "file_name": original_name,
+                                    "file_id": file_id,
                                     "pass_number": pass_number,
                                 }),
                             })
-                            # Emit gaps from at_risk_knowledge and fragile_points
-                            for item in r.get("at_risk_knowledge", []):
-                                await queue.put({
-                                    "event": "gap_discovered",
-                                    "data": json.dumps({
-                                        "title": item[:80],
-                                        "description": item,
-                                        "severity": "high",
-                                    }),
-                                })
-                            for item in r.get("fragile_points", []):
-                                await queue.put({
-                                    "event": "gap_discovered",
-                                    "data": json.dumps({
-                                        "title": item[:80],
-                                        "description": item,
-                                        "severity": "medium",
-                                    }),
-                                })
 
                 elif node_name == "collect_deep_dives":
                     await queue.put({
@@ -138,13 +128,89 @@ async def _run_pipeline(
                             "message": "Deep dives complete",
                         }),
                     })
+                    await queue.put({
+                        "event": "step_started",
+                        "data": json.dumps({
+                            "step": "identify_gaps",
+                            "message": "Identifying knowledge gaps...",
+                        }),
+                    })
 
                 elif node_name == "concatenate_deep_dives":
+                    # Emit consolidated gaps from latest-pass-per-file
+                    latest_by_file: dict[str, dict] = {}
+                    for rpt in accumulated_reports:
+                        fid = rpt.get("file_id", "")
+                        pn = rpt.get("pass_number", 0)
+                        existing = latest_by_file.get(fid)
+                        if existing is None or pn > existing.get("pass_number", 0):
+                            latest_by_file[fid] = rpt
+
+                    for rd in latest_by_file.values():
+                        fid = rd.get("file_id", "")
+                        source_file = file_id_to_name.get(fid, fid)
+                        for item in rd.get("at_risk_knowledge", []):
+                            await queue.put({
+                                "event": "gap_discovered",
+                                "data": json.dumps({
+                                    "text": item,
+                                    "severity": "high",
+                                    "source_file": source_file,
+                                }),
+                            })
+                        for item in rd.get("fragile_points", []):
+                            await queue.put({
+                                "event": "gap_discovered",
+                                "data": json.dumps({
+                                    "text": item,
+                                    "severity": "medium",
+                                    "source_file": source_file,
+                                }),
+                            })
+                        for item in rd.get("key_mechanics", []):
+                            await queue.put({
+                                "event": "gap_discovered",
+                                "data": json.dumps({
+                                    "text": item,
+                                    "severity": "low",
+                                    "source_file": source_file,
+                                }),
+                            })
+
                     await queue.put({
                         "event": "step_completed",
                         "data": json.dumps({
-                            "step": "concatenate_deep_dives",
-                            "message": "Deep dive reports concatenated",
+                            "step": "identify_gaps",
+                            "message": "Knowledge gaps identified",
+                        }),
+                    })
+                    await queue.put({
+                        "event": "step_started",
+                        "data": json.dumps({
+                            "step": "generate_questions",
+                            "message": "Generating interview questions...",
+                        }),
+                    })
+
+                    # Emit questions from question_backlog (capped)
+                    questions = state_update.get("question_backlog", [])
+                    for q in questions[:settings.MAX_OPEN_QUESTIONS]:
+                        qd = q if isinstance(q, dict) else q.model_dump()
+                        q_fid = qd.get("source_file_id", "")
+                        await queue.put({
+                            "event": "question_discovered",
+                            "data": json.dumps({
+                                "question_text": qd.get("question_text", ""),
+                                "source_file": file_id_to_name.get(q_fid, q_fid),
+                                "priority": qd.get("priority", "P1"),
+                            }),
+                        })
+
+                    await queue.put({
+                        "event": "step_completed",
+                        "data": json.dumps({
+                            "step": "generate_questions",
+                            "message": f"Generated {min(len(questions), settings.MAX_OPEN_QUESTIONS)} interview questions",
                         }),
                     })
 

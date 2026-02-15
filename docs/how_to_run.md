@@ -1,5 +1,31 @@
 # How to Run — Golden Gate
 
+## Quick Start (Demo Only — no backend needed)
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000` → click **Start Screening** → watch the mock analysis run. No API key required.
+
+## Quick Start (Full Stack)
+
+```bash
+# Terminal 1 — backend
+cp .env.example .env          # then add your OPENAI_API_KEY
+uv sync
+uv run uvicorn backend.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. To run against the real backend, upload files via the UI or hit `POST /api/offboarding/start`.
+
+---
+
 ## Prerequisites
 
 - **macOS** (developed on M4 chip)

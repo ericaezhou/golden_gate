@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------
 # Prompt templates
 # ------------------------------------------------------------------
-SYSTEM_PROMPT = """You are a senior knowledge analyst performing a structured review of project files before an employee departs. Your goal is to extract knowledge that would be lost if the author left. Be specific and evidence-based. Return valid JSON."""
+SYSTEM_PROMPT = """You are a senior knowledge analyst performing a structured review of project files before an employee departs. Your goal is to extract knowledge that would be lost if the author left. Be specific and evidence-based. Return valid JSON.
+
+IMPORTANT: All questions you generate must be specific and closed-ended — they should ask about a concrete value, decision, threshold, process, or fact that has a definitive answer. Never ask open-ended questions like "Can you explain..." or "What is your approach to...". Instead ask things like "What is the threshold value for X?" or "Which team receives the output of Y?" or "How often is the Z override applied?"."""
 
 PASS_1_USER_TEMPLATE = """You are analyzing a {file_type} file named "{file_name}".
 Here is its structured content:
@@ -36,7 +38,7 @@ Analyze this file and return a JSON object with EXACTLY these fields:
   "key_mechanics": ["string — Core logic, formulas, workflows, key operations"],
   "fragile_points": ["string — What looks brittle, manual, or error-prone?"],
   "at_risk_knowledge": ["string — Decisions or heuristics that would be lost if the author left"],
-  "questions": [{{"text": "What would you ask the author?", "evidence": "Quote or reference from the file"}}],
+  "questions": [{{"text": "A specific, closed-ended question targeting a concrete fact, value, or decision", "evidence": "Quote or reference from the file"}}],
   "cumulative_summary": "string — A concise summary of your findings"
 }}
 
