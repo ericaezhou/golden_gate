@@ -37,3 +37,18 @@ next-env.d.ts
 .vscode/
 
 output/*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# session data (runtime artifacts)
+data/sessions/*/
+
+# chromadb
+chroma_data/
+
+# env
+.env
