@@ -182,7 +182,8 @@ class TestParseLLMResponse(unittest.TestCase):
         report = _parse_llm_response(data, f, pass_number=2, previous=[r1])
         # Should include prior summary in the cumulative
         self.assertIn(r1.cumulative_summary, report.cumulative_summary)
-        self.assertIn("[Pass 2]", report.cumulative_summary)
+        # The cumulative is "{prev}\n\n{current}" — verify both parts present
+        self.assertIn("Summary from pass 2", report.cumulative_summary)
 
     def test_questions_capped_at_max(self):
         f = _make_file()

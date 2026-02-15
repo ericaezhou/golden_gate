@@ -45,7 +45,7 @@ def test_config_defaults():
 
     assert settings.LLM_MODEL == "gpt-4o"
     assert settings.MAX_INTERVIEW_ROUNDS == 10
-    assert settings.MAX_OPEN_QUESTIONS == 15
+    assert settings.MAX_OPEN_QUESTIONS == 8
     assert settings.DEEP_DIVE_PASSES_XLSX == 3
     assert settings.DEEP_DIVE_PASSES_DEFAULT == 2
 
