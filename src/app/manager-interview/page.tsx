@@ -95,7 +95,7 @@ function InterviewContent() {
                              hover:bg-amber-700 transition-colors text-sm
                              focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
                 >
-                  View Onboarding Package →
+                  View Interview Summary →
                 </button>
               )}
             </div>
