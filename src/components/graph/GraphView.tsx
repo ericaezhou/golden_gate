@@ -12,6 +12,7 @@ import ReactFlow, {
     Position,
     NodeProps,
     useReactFlow,
+    MarkerType,
   } from "reactflow";
   import "reactflow/dist/style.css";
   import dagre from "dagre";
@@ -77,7 +78,6 @@ type KGNode = {
   id: string;
   type: string;
   name: string;
-  confidence: number;
   evidence: Evidence[];
   // optional if you have it
   attrs?: { k: string; v: string }[];
@@ -87,7 +87,6 @@ type KGEdge = {
   source: string;
   type: string;
   target: string;
-  confidence: number;
   evidence: Evidence[];
   attrs?: { k: string; v: string }[];
 };
@@ -107,21 +106,20 @@ function colorForType(t: string) {
       runbook: "#22c55e",
       runbookstep: "#86efac",
       decisionrule: "#a855f7",
-      decision: "#a855f7",      // ✅ 你图里有 decision
+      decision: "#a855f7",      
       risk: "#f97316",
       mitigation: "#16a34a",
       person: "#64748b",
       document: "#94a3b8",
       operationalartifact: "#f59e0b",
-      component: "#06b6d4",     // ✅ 你图里有 component
-      threshold: "#f97316",     // ✅ 你图里很多 threshold
-      role: "#64748b",          // ✅ 你图里有 role
+      component: "#06b6d4",     
+      threshold: "#f97316",     
+      role: "#64748b",          
     };
     return m[key] ?? "#9ca3af";
   }
 
 function labelForNode(n: KGNode) {
-  const conf = typeof n.confidence === "number" ? n.confidence.toFixed(2) : "—";
   return `${n.name}`;
 }
 
@@ -216,13 +214,14 @@ export default function GraphView() {
     }));
 
     const rfEdges: Edge[] = filteredKG.edges.map((e, i) => ({
-      id: `e_${i}_${e.source}_${e.target}_${e.type}`,
-      source: e.source,
-      target: e.target,
-      label: e.type,
-      animated: false,
-      style: { opacity: 0.7 },
-      data: { __raw: e },
+        id: `e_${i}_${e.source}_${e.target}_${e.type}`,
+        source: e.source,
+        target: e.target,
+        label: e.type,
+        animated: false,
+        style: { opacity: 0.7 },
+        markerEnd: { type: MarkerType.ArrowClosed }, // ✅ 箭头
+        data: { __raw: e },
     }));
 
     // Layout
@@ -321,7 +320,7 @@ export default function GraphView() {
 
         {!selected ? (
           <div style={{ color: "#64748b", lineHeight: 1.6 }}>
-            Click a node to see details (name/type/confidence/evidence).
+            Click a node to see details (name/type/evidence).
           </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>

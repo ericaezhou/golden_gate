@@ -15,14 +15,13 @@ def build_and_store_kg(project_context: str, interview_transcript: str):
 
     kg_json = extract_kg_with_evidence(client, project_context, interview_transcript)
     print(f"kg_json: {kg_json}")
-    with open("kg_original.txt", "w") as f:
-        f.write(kg_json)
-    kg = json.loads(kg_json)
+    # with open("kg_original.txt", "w") as f:
+    #     f.write(kg_json)
+    # kg = json.loads(kg_json)
     # kg = normalize_and_hash_evidence(kg_json)
 
-    # upsert_neo4j_with_evidence("bolt://localhost:7687", "neo4j", "password", kg)
-    with open("kg.json", "w") as f:
-        json.dump(kg, f)
+    with open("./public/kg.json", "w") as f:
+        json.dump(kg_json, f)
     return kg_json
 
 def show_kg(kg_path: str):
@@ -44,10 +43,25 @@ def build_interview_transcript(interview_transcript_path: str) -> str:
         interview_transcript = f.read()
     return interview_transcript
 
+def build_kg(interview_summary:str, parsed_directory: str = "output/parsed") -> str:
+    project_context = ""
+    for file in os.listdir(parsed_directory):
+        if file.endswith(".json"):
+            with open(os.path.join(parsed_directory, file), "r") as f:
+                file_content = json.load(f)
+                project_context += f"<<<FILE path='{file_content['file_path']}'>>>"
+                project_context += str(file_content['content'])
+                project_context += "<<</FILE>>>\n"
+    kg_json = build_and_store_kg(project_context, interview_summary)
+    with open(f"public/kg.json", "w") as f:
+        json.dump(kg_json, f)
+    return kg_json
+
 if __name__ == "__main__":
     file_paths = ["public/artifacts/alice-chen/Risk_Committee_Notes.md", "public/artifacts/alice-chen/Q3_Loss_Forecast.json"]
-    project_context = build_project_context(file_paths)
-    interview_transcript = build_interview_transcript("src/data/short_interview.md")
-    print("finish building project context and interview transcript")
-    kg_json = build_and_store_kg(project_context, interview_transcript)
-    print(f"finish building and storing kg: {kg_json}")
+    for file_path in file_paths:
+        res = parse_file(file_path)
+        json.dump(res.to_dict(), open(f"mock/{file_path.split('/')[-1]}.json", "w"))
+    interview_summary = build_interview_transcript("src/data/short_interview.md")
+    build_kg(interview_summary, "mock")
+    print("finish building and storing kg")
