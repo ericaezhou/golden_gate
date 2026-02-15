@@ -40,6 +40,24 @@ from backend.services.storage import SessionStorage
 logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------
+# DEMO MODE: Hardcoded questions for hackathon demo
+# ------------------------------------------------------------------
+DEMO_MODE = True  # Set to False to use real LLM question generation
+
+DEMO_QUESTIONS = [
+    {
+        "round": 1,
+        "question_text": "Thank you so much for taking the time to share your insights today. I've had a chance to look through your project files, and I really appreciate the complexity and thoughtfulness of your work. I'd love to dive into the specifics of the workflow document. Could you explain the exact criteria you use for switching supplier timing from normal to volatile conditions? This seems like a critical decision point, and your expertise would be invaluable in understanding it fully.",
+        "source_file": "workflow.txt"
+    },
+    {
+        "round": 2,
+        "question_text": "That's really insightful how you use the 4-quarter shortcut under stable conditions, especially with the specific criteria you mentioned for GDP growth and unemployment. Building on that, I'd like to understand more about the overlay decision process. Could you explain the buffer percentage you apply for new products? It seems like this is an important factor in ensuring the model's accuracy for emerging segments.",
+        "source_file": "loss_model.py"
+    }
+]
+
+# ------------------------------------------------------------------
 # Prompt 1: Select the best next question for conversational flow
 # ------------------------------------------------------------------
 SELECT_QUESTION_SYSTEM = """\
@@ -252,27 +270,44 @@ async def interview_loop(state: OffboardingState) -> dict:
     round_num = len(transcript)
 
     while round_num < settings.MAX_INTERVIEW_ROUNDS:
-        # Find open P0/P1 questions
-        open_qs = _get_open_questions(backlog)
-        if not open_qs:
-            logger.info("No more open P0/P1 questions. Ending interview.")
-            break
+        # --- DEMO MODE: Use hardcoded questions for first 2 rounds only ---
+        if DEMO_MODE and round_num < len(DEMO_QUESTIONS):
+            demo_q = DEMO_QUESTIONS[round_num]
+            question_text = demo_q["question_text"]
+            source_display = demo_q["source_file"]
 
-        # --- LLM Call 1: Select best next question for flow ---
-        next_q = await _select_next_question(open_qs, transcript)
+            # Create a dummy Question object for the transcript
+            next_q = Question(
+                question_id=f"demo_q{round_num + 1}",
+                question_text=question_text,
+                source_file_id=demo_q["source_file"],
+                origin=QuestionOrigin.PER_FILE,
+                priority=QuestionPriority.P0,
+                status=QuestionStatus.OPEN,
+            )
+        else:
+            # Normal mode OR after first 2 hardcoded questions: use LLM generation
+            # Find open P0/P1 questions
+            open_qs = _get_open_questions(backlog)
+            if not open_qs:
+                logger.info("No more open P0/P1 questions. Ending interview.")
+                break
 
-        # --- LLM Call 2: Rephrase with project context + conversation ---
-        conversation_context = _build_conversation_context(transcript)
-        question_text = await _rephrase_question(
-            raw_question=next_q.question_text,
-            conversation_context=conversation_context,
-            project_context=project_context,
-            remaining=len(open_qs) - 1,
-        )
+            # --- LLM Call 1: Select best next question for flow ---
+            next_q = await _select_next_question(open_qs, transcript)
 
-        # Resolve file_id to human-readable filename for the frontend
-        raw_file_id = next_q.source_file_id or ""
-        source_display = file_id_map.get(raw_file_id, raw_file_id)
+            # --- LLM Call 2: Rephrase with project context + conversation ---
+            conversation_context = _build_conversation_context(transcript)
+            question_text = await _rephrase_question(
+                raw_question=next_q.question_text,
+                conversation_context=conversation_context,
+                project_context=project_context,
+                remaining=len(open_qs) - 1,
+            )
+
+            # Resolve file_id to human-readable filename for the frontend
+            raw_file_id = next_q.source_file_id or ""
+            source_display = file_id_map.get(raw_file_id, raw_file_id)
 
         # For discovered/follow-up questions that lost their source_file_id,
         # try to infer from the most recent conversation context
