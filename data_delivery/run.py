@@ -14,12 +14,7 @@ def build_and_store_kg(project_context: str, interview_transcript: str):
     client = OpenAI()
 
     kg_json = extract_kg_with_evidence(client, project_context, interview_transcript)
-    print(f"kg_json: {kg_json}")
-    # with open("kg_original.txt", "w") as f:
-    #     f.write(kg_json)
-    # kg = json.loads(kg_json)
-    # kg = normalize_and_hash_evidence(kg_json)
-
+    # print(f"kg_json: {kg_json}")
     with open("./public/kg.json", "w") as f:
         json.dump(kg_json, f)
     return kg_json
