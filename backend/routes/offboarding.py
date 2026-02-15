@@ -371,25 +371,36 @@ async def get_status(session_id: str) -> dict[str, Any]:
     # include the cached artifacts so the frontend can skip SSE.
     pipeline_status = state.get("status", "")
     if pipeline_status in ("interview_ready", "complete", "interview_active"):
-        # Parsed files
-        if store.exists("parsed"):
-            parsed_dir = store.get_session_path() / "parsed"
-            result["parsed_files"] = [
-                f.stem for f in parsed_dir.iterdir() if f.suffix == ".json"
-            ]
-        # Try to get original filenames from metadata or raw_files
+        # Load file_id → filename mapping
+        file_id_map: dict[str, str] = {}
+        if store.exists("file_id_map.json"):
+            try:
+                file_id_map = store.load_json("file_id_map.json")
+            except Exception:
+                pass
+
+        # Parsed files — prefer original filenames
         raw_files = store.list_raw_files()
         if raw_files:
             result["parsed_files"] = [f.name for f in raw_files]
+        elif store.exists("parsed"):
+            parsed_dir = store.get_session_path() / "parsed"
+            result["parsed_files"] = [
+                file_id_map.get(f.stem, f.stem)
+                for f in parsed_dir.iterdir() if f.suffix == ".json"
+            ]
 
-        # Question backlog
+        # Question backlog — resolve source_file_id to human-readable name
         if store.exists("question_backlog.json"):
             try:
                 backlog = store.load_json("question_backlog.json")
                 result["questions"] = [
                     {
                         "text": q.get("question_text", ""),
-                        "source_file": q.get("source_file_id", ""),
+                        "source_file": file_id_map.get(
+                            q.get("source_file_id", ""),
+                            q.get("source_file_id", ""),
+                        ),
                         "priority": q.get("priority", "P1"),
                     }
                     for q in backlog

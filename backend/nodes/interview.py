@@ -231,6 +231,21 @@ async def interview_loop(state: OffboardingState) -> dict:
     global_summary = state.get("global_summary", "")
     store = SessionStorage(session_id)
 
+    # Load file_id → original filename mapping for citations
+    file_id_map: dict[str, str] = {}
+    if store.exists("file_id_map.json"):
+        try:
+            file_id_map = store.load_json("file_id_map.json")
+        except Exception:
+            pass
+    # Fallback: build from structured_files in state
+    if not file_id_map:
+        for sf in state.get("structured_files", []):
+            fid = sf.get("file_id", "") if isinstance(sf, dict) else getattr(sf, "file_id", "")
+            fname = sf.get("file_name", "") if isinstance(sf, dict) else getattr(sf, "file_name", "")
+            if fid and fname:
+                file_id_map[fid] = fname
+
     # Truncate corpus for prompt context (keep it focused)
     project_context = _build_project_context(corpus, global_summary)
 
@@ -255,11 +270,15 @@ async def interview_loop(state: OffboardingState) -> dict:
             remaining=len(open_qs) - 1,
         )
 
+        # Resolve file_id to human-readable filename for the frontend
+        raw_file_id = next_q.source_file_id or ""
+        source_display = file_id_map.get(raw_file_id, raw_file_id)
+
         # Pause and wait for user response via frontend
         user_response = interrupt({
             "question_id": next_q.question_id,
             "question_text": question_text,
-            "source_file": next_q.source_file_id or "",
+            "source_file": source_display,
             "raw_question": next_q.question_text,
             "round": round_num + 1,
             "remaining": len(open_qs) - 1,

@@ -173,20 +173,21 @@ async def respond_to_question(
         })
 
         # Read newly-extracted facts from persisted file
-        all_facts: list[str] = []
+        all_facts_raw: list[str] = []
         if store.exists("interview/extracted_facts.json"):
             try:
-                all_facts = store.load_json("interview/extracted_facts.json")
+                all_facts_raw = store.load_json("interview/extracted_facts.json")
             except Exception:
                 pass
-        new_facts = all_facts[prev_count:]  # only facts added this round
+        new_facts = all_facts_raw[prev_count:]  # only facts added this round
+        all_facts_deduped = _deduplicate_facts(all_facts_raw)
 
         return {
             "session_id": session_id,
             "interview_active": True,
             "question": question_data,
             "facts_extracted": new_facts,
-            "all_facts": all_facts,
+            "all_facts": all_facts_deduped,
         }
     else:
         # Interview ended — graph continued to package + qa_context
@@ -291,3 +292,73 @@ def _extract_interrupt(graph_state) -> dict:
                 for intr in task.interrupts:
                     return intr.value
     return {"question_text": "(Ready for your response)"}
+
+
+def _deduplicate_facts(facts: list[str]) -> list[str]:
+    """Remove duplicate and near-duplicate facts.
+
+    Strategy (applied in order):
+    1. Exact duplicates (case-insensitive) are removed.
+    2. If fact A is a substring of fact B, keep only B (more detailed).
+    3. Content-word Jaccard (ignoring stopwords) ≥ 0.55 → keep longer fact.
+
+    Preserves insertion order.
+    """
+    import re
+
+    if not facts:
+        return []
+
+    STOPWORDS = {
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "in", "on", "at", "to", "for", "of", "with", "by", "from", "as",
+        "it", "its", "this", "that", "and", "or", "but", "not", "no",
+        "than", "rather", "also", "does", "do", "did", "has", "have", "had",
+    }
+
+    def _tokenize(text: str) -> set[str]:
+        """Content-word tokens (stopwords removed) for better similarity."""
+        words = set(re.findall(r"[a-z0-9_]+", text.lower()))
+        return words - STOPWORDS
+
+    def _jaccard(a: set[str], b: set[str]) -> float:
+        if not a or not b:
+            return 0.0
+        return len(a & b) / len(a | b)
+
+    # Step 1: exact dedup (keep first occurrence)
+    normalized = [(f, f.strip().lower()) for f in facts]
+    seen: set[str] = set()
+    unique: list[tuple[str, str]] = []
+    for original, norm in normalized:
+        if norm not in seen:
+            seen.add(norm)
+            unique.append((original, norm))
+
+    # Step 2 + 3: mark facts to drop
+    tokens_cache = [_tokenize(norm) for _, norm in unique]
+    drop: set[int] = set()
+
+    for i in range(len(unique)):
+        if i in drop:
+            continue
+        for j in range(i + 1, len(unique)):
+            if j in drop:
+                continue
+            norm_i = unique[i][1]
+            norm_j = unique[j][1]
+
+            # Substring check
+            is_sub = norm_i in norm_j or norm_j in norm_i
+            # Content-word overlap check (lower threshold since stopwords removed)
+            sim = _jaccard(tokens_cache[i], tokens_cache[j])
+
+            if is_sub or sim >= 0.55:
+                # Keep the longer (more detailed) fact
+                if len(norm_i) >= len(norm_j):
+                    drop.add(j)
+                else:
+                    drop.add(i)
+                    break  # i is dropped, no need to compare further
+
+    return [orig for idx, (orig, _) in enumerate(unique) if idx not in drop]
