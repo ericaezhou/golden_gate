@@ -321,8 +321,15 @@ This is the most important reasoning step. Each file is read **multiple times** 
 class FileDeepDiveState(TypedDict):
     file: StructuredFile
     pass_number: int
+    max_passes: int                                    # 3 for xlsx, 2 for others
     previous_passes: list[DeepDiveReport]
     current_report: DeepDiveReport | None
+    session_id: str                                    # for persistence during passes
+    deep_dive_reports: Annotated[list[DeepDiveReport], _append_list]  # fan-in accumulator
+
+class FileDeepDiveOutput(TypedDict):
+    """Output schema — only deep_dive_reports fans back to parent graph."""
+    deep_dive_reports: Annotated[list[DeepDiveReport], _append_list]
 ```
 
 **Pass 1 — Map & Describe**

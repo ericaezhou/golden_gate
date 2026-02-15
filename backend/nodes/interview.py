@@ -106,9 +106,23 @@ async def interview_loop(state: OffboardingState) -> dict:
             [q.model_dump() for q in backlog],
         )
 
+    # Build plain-text interview summary for downstream nodes
+    summary_lines = []
+    for t in transcript:
+        summary_lines.append(f"Q: {t.question_text}")
+        summary_lines.append(f"A: {t.user_response}")
+        if t.extracted_facts:
+            summary_lines.append(f"   Facts: {'; '.join(t.extracted_facts)}")
+        summary_lines.append("")
+    interview_summary = "\n".join(summary_lines).strip()
+
+    # Persist interview summary as txt
+    store.save_text("interview/interview_summary.txt", interview_summary)
+
     return {
         "interview_transcript": transcript,
         "extracted_facts": facts,
+        "interview_summary": interview_summary,
         "question_backlog": backlog,
         "status": "interview_complete",
         "current_step": "interview_loop",

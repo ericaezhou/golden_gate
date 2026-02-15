@@ -26,7 +26,7 @@ def build_file_deep_dive_subgraph() -> StateGraph:
     parent graph, avoiding InvalidUpdateError on concurrent fan-in of
     non-reducer keys like session_id.
     """
-    builder = StateGraph(FileDeepDiveState, output=FileDeepDiveOutput)
+    builder = StateGraph(FileDeepDiveState, output_schema=FileDeepDiveOutput)
 
     builder.add_node("run_pass", run_deep_dive_pass)
 
