@@ -1,6 +1,6 @@
 # Project Progress — What's Done & What's TODO
 
-*Last updated: Feb 15, 2026*
+*Last updated: Feb 14, 2026*
 
 ---
 
@@ -11,13 +11,13 @@
 | Project setup | **Done** | `pyproject.toml`, `uv sync`, `.env.example` |
 | Data models | **Done** | Pydantic models + LangGraph state types |
 | File parsers | **Done** | 10 parsers (xlsx, pptx, py, ipynb, md, sql, pdf, docx, sqlite, txt) |
-| Services (LLM, storage, embeddings) | **Done** | Fully implemented wrappers |
+| Services (LLM, storage) | **Done** | Fully implemented wrappers (embeddings.py removed — MVP uses system prompt) |
 | Graph skeletons | **Done** | Offboarding + onboarding graphs wired with all edges |
 | FastAPI app + routes | **Done** | All endpoints exist with stub responses |
-| Pipeline nodes | **Partial** | 4 of 8 implemented (reconcile_questions done), 4 need LLM calls |
-| Route wiring to graphs | **TODO** | Routes don't execute graphs yet |
+| Pipeline nodes | **Partial** | 6 of 8 implemented (deep_dive, global_summarize, reconcile, concatenate, parse, build_qa_context done); interview + generate_package need LLM calls |
+| Route wiring to graphs | **Partial** | `routes/offboarding.py` fully wired (SSE streaming, background task); interview + onboarding routes still stubs |
 | Frontend ↔ backend integration | **TODO** | Frontend still uses mock data |
-| Tests | **Partial** | 6 framework smoke tests pass, need node-level tests |
+| Tests | **Partial** | 6 framework + 16 reconcile + 24 deep dive tests = 46 passing |
 
 ---
 
@@ -37,7 +37,7 @@
 |------|----------------|
 | `artifacts.py` | `StructuredFile`, `DeepDiveReport`, `InterviewTurn`, `OnboardingPackage`, `Evidence` |
 | `questions.py` | `Question` with enums: `QuestionOrigin`, `QuestionStatus`, `QuestionPriority` |
-| `state.py` | `OffboardingState`, `OnboardingState`, `FileDeepDiveState` (LangGraph TypedDicts) |
+| `state.py` | `OffboardingState`, `OnboardingState`, `FileDeepDiveState`, `FileDeepDiveOutput` (LangGraph TypedDicts) |
 
 ### Services (`backend/services/`)
 
@@ -45,7 +45,8 @@
 |------|-------------|
 | `llm.py` | `call_llm(system, user)` and `call_llm_json(system, user)` — async OpenAI wrappers with retry-friendly JSON extraction |
 | `storage.py` | `SessionStorage` class — JSON/text save/load, file uploads, session creation |
-**Note:** `embeddings.py` (ChromaDB) exists but is **not used for MVP**. The QA agent uses deep dives + interview summary as a system prompt instead of vector retrieval.
+
+**Note:** `embeddings.py` (ChromaDB) has been **removed**. The QA agent uses deep dives + interview summary as a system prompt instead of vector retrieval.
 
 ### File Parsers (`backend/parsers/`)
 
@@ -68,25 +69,28 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 
 | File | What it does |
 |------|-------------|
-| `offboarding_graph.py` | Full pipeline: `START → parse → fan-out deep dives → collect → concat → global → reconcile → interview → [package + qa_context] → END` |
+| `offboarding_graph.py` | Full pipeline: `START → parse → fan-out deep dives → collect → concat → global → reconcile → interview → [package + qa_context] → END`. Also exposes `build_deep_dive_only_graph()` (truncated: parse → deep dives → concat → END, no checkpointer needed). |
 | `onboarding_graph.py` | `START → generate_narrative → qa_loop (system-prompt based, with interrupt)` |
-| `subgraphs/file_deep_dive.py` | Per-file loop: `START → run_pass → continue/done → END` |
+| `subgraphs/file_deep_dive.py` | Per-file loop: `START → run_pass → continue/done → END`. Uses `FileDeepDiveOutput` to restrict fan-in keys. |
 
 ### Implemented Nodes
 
 | File | Status | Notes |
 |------|--------|-------|
 | `nodes/parse_files.py` | **Done** | Uses existing parsers, handles errors gracefully, persists results |
-| `nodes/concatenate.py` | **Done** | Merges reports, initializes question backlog, formats corpus text |
+| `nodes/deep_dive.py` | **Done** | Multi-pass LLM analysis (3 passes for xlsx, 2 for others). Pass-specific prompts, cumulative summaries. Persists each pass as JSON. |
+| `nodes/concatenate.py` | **Done** | Merges reports (takes latest pass per file), initializes question backlog, formats corpus text. Persists corpus as JSON. |
+| `nodes/global_summarize.py` | **Done** | Cross-file LLM reasoning. Generates global summary + cross-file questions (GLOBAL origin). Appends to backlog. |
 | `nodes/reconcile_questions.py` | **Done** | LLM-assisted dedup, auto-resolve, reprioritize, cap enforcement with fallback |
+| `nodes/build_qa_context.py` | **Done** | Pure code (no LLM). Combines deep_dive_corpus + interview_summary + extracted_facts into `qa_system_prompt.txt` |
 
 ### Routes (all endpoints exist)
 
 | File | Endpoints | Status |
 |------|-----------|--------|
-| `routes/offboarding.py` | `POST /start`, `GET /status`, `GET /stream` | **Stubs** — saves files + returns session ID, but doesn't execute graph |
-| `routes/interview.py` | `POST /respond`, `POST /end` | **Stubs** — persists response, but doesn't resume graph |
-| `routes/onboarding.py` | `GET /narrative`, `POST /ask` | **Stubs** — reads stored package, but no retrieval |
+| `routes/offboarding.py` | `POST /start`, `GET /status`, `GET /stream`, `GET /demo-files`, `GET /demo-files/{filename}` | **Done** — fully wired: runs `build_deep_dive_only_graph()` in background task, SSE streaming of pipeline events, demo file serving |
+| `routes/interview.py` | `POST /respond`, `POST /end` | **Stubs** — persists response, but doesn't resume LangGraph interrupt |
+| `routes/onboarding.py` | `GET /narrative`, `POST /ask`, `GET /knowledge-graph` | **Stubs** — reads stored package; QA and knowledge graph not yet implemented |
 | `routes/session.py` | `GET /artifacts` | **Done** — fully implemented |
 
 ### Tests
@@ -95,6 +99,7 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 |------|-------|--------|
 | `tests/test_framework.py` | 6 smoke tests | **All passing** |
 | `tests/test_reconcile_questions.py` | 16 unit tests | **All passing** |
+| `tests/test_deep_dive.py` | 24 unit tests (multi-pass, prompts, persistence, concatenation, subgraph) | **All passing** |
 | `test_parsers.py` | Parser integration tests | **Existing** |
 
 ---
@@ -105,24 +110,13 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 
 These nodes have the correct signatures, state I/O, and persistence — they just need the actual LLM prompt calls filled in.
 
-#### `nodes/deep_dive.py` — Per-File LLM Analysis
+#### ~~`nodes/deep_dive.py`~~ — DONE
 
-- **What exists:** Subgraph loop structure, pass routing, `prepare_deep_dive_input()` helper. Returns placeholder `DeepDiveReport`.
-- **What's needed:**
-  - [ ] Pass 1 LLM call: "Map & Describe" — file purpose, key mechanics, fragile points, at-risk knowledge, questions
-  - [ ] Pass 2 LLM call: "Critique & Gaps" — focus on assumptions, implicit dependencies, undocumented manual steps
-  - [ ] Pass 3 LLM call: "At-Risk Knowledge Extraction" (xlsx only) — tacit knowledge, override rules, heuristics
-  - [ ] Parse LLM JSON response into `DeepDiveReport` fields
-- **Reference:** `docs/implementation_design.md` §4.2
+Fully implemented: 3 pass-specific prompts (map & describe, critique & gaps, tacit knowledge), cumulative summaries, JSON persistence per pass, `prepare_deep_dive_input()` with configurable pass count per file type. 24 unit tests passing.
 
-#### `nodes/global_summarize.py` — Cross-File Reasoning
+#### ~~`nodes/global_summarize.py`~~ — DONE
 
-- **What exists:** Node signature, storage persistence. Returns placeholder string.
-- **What's needed:**
-  - [ ] LLM call: reason across files for mismatches, dependencies, missing context
-  - [ ] Generate new cross-file questions with `origin = "global"`
-  - [ ] Append new questions to `question_backlog`
-- **Reference:** `docs/implementation_design.md` §4.4
+Fully implemented: cross-file LLM reasoning, generates global summary + cross-file questions with GLOBAL origin and priority levels, appends to question backlog. Persists `global_summary.json`.
 
 #### ~~`nodes/reconcile_questions.py`~~ — DONE
 
@@ -147,14 +141,9 @@ Fully implemented with LLM-assisted dedup, auto-resolve, reprioritization, and c
 - **Reference:** `docs/implementation_design.md` §4.7
 
 
-#### `nodes/build_qa_context.py` — QA Agent System Prompt (NEW)
+#### ~~`nodes/build_qa_context.py`~~ — DONE
 
-- **What exists:** Not yet created.
-- **What's needed:**
-  - [ ] Create the node file
-  - [ ] Pure code (no LLM): combine deep_dive_corpus + interview_summary + extracted_facts into a structured `.txt` file
-  - [ ] Persist as `qa_system_prompt.txt`
-- **Reference:** `docs/implementation_design.md` §4.9
+Fully implemented: pure code (no LLM). Combines deep_dive_corpus + interview_summary + extracted_facts + answered questions into `qa_system_prompt.txt`. Also persists `deep_dive_corpus.txt` and `interview/interview_summary.txt`.
 
 ---
 
@@ -162,12 +151,9 @@ Fully implemented with LLM-assisted dedup, auto-resolve, reprioritization, and c
 
 The routes currently save data and return stubs. They need to actually execute the LangGraph graphs.
 
-#### `routes/offboarding.py`
+#### ~~`routes/offboarding.py`~~ — DONE
 
-- [ ] Run `build_offboarding_graph().ainvoke(initial_state)` in a background task
-- [ ] Track running graph tasks per session
-- [ ] Emit SSE events as each node completes (hook into graph execution callbacks)
-- [ ] Update `graph_state.json` after each node
+Fully wired: runs `build_deep_dive_only_graph()` in a background task with `asyncio.create_task()`, tracks tasks per session, emits SSE events for parse/deep dive/concat steps, saves `graph_state.json`. Also serves demo files from `data/` directory.
 
 #### `routes/interview.py`
 
@@ -229,15 +215,15 @@ The frontend pages exist but use mock data. They need to be wired to the real ba
 
 Each priority can be worked on by different people in parallel since they're decoupled:
 
-| Track | Person | Files | Depends on |
-|-------|--------|-------|------------|
-| **A: Deep Dive node** | — | `nodes/deep_dive.py` | Models, LLM service |
-| **B: Global + Reconcile nodes** | — | `nodes/global_summarize.py` | Models, LLM service |
-| ~~**B2: Reconcile**~~ | — | ~~`nodes/reconcile_questions.py`~~ | **DONE** |
-| **C: Interview node** | — | `nodes/interview.py` | Models, LLM service |
-| **D: Package generation node** | — | `nodes/generate_package.py` | Models, LLM service |
-| **D2: QA context node** | — | `nodes/build_qa_context.py` (NEW) | Models, storage |
-| **E: Route wiring** | — | `routes/offboarding.py`, `routes/interview.py`, `routes/onboarding.py` | Graph skeletons, nodes |
-| **F: Frontend** | — | `src/app/` pages + knowledge graph visualization (on-demand) | Routes |
+| Track | Person | Files | Status |
+|-------|--------|-------|--------|
+| ~~**A: Deep Dive node**~~ | — | ~~`nodes/deep_dive.py`~~ | **DONE** |
+| ~~**B: Global + Reconcile nodes**~~ | — | ~~`nodes/global_summarize.py`, `nodes/reconcile_questions.py`~~ | **DONE** |
+| ~~**B3: QA context node**~~ | — | ~~`nodes/build_qa_context.py`~~ | **DONE** |
+| **C: Interview node LLM calls** | — | `nodes/interview.py` | Loop structure done; needs LLM calls for question rephrasing, fact extraction, confidence |
+| **D: Package generation LLM** | — | `nodes/generate_package.py` | Persistence done; needs LLM calls for knowledge entries + onboarding doc remix |
+| ~~**E1: Offboarding route**~~ | — | ~~`routes/offboarding.py`~~ | **DONE** (SSE streaming, background task) |
+| **E2: Interview + Onboarding routes** | — | `routes/interview.py`, `routes/onboarding.py` | Stubs — need LangGraph interrupt wiring + system-prompt QA |
+| **F: Frontend** | — | `src/app/` pages + knowledge graph visualization (on-demand) | Depends on routes |
 
-Tracks A–D3 are fully independent of each other. Track E depends on at least some nodes being implemented. Track F depends on routes working.
+Remaining work is concentrated in tracks C, D, E2, and F.
