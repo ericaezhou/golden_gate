@@ -354,17 +354,51 @@ async def start_offboarding(
 
 @router.get("/{session_id}/status")
 async def get_status(session_id: str) -> dict[str, Any]:
-    """Return the current pipeline status."""
+    """Return the current pipeline status, including cached results when complete."""
     store = SessionStorage(session_id)
     try:
         state = store.load_json("graph_state.json")
-        return {
-            "session_id": session_id,
-            "current_step": state.get("current_step", "unknown"),
-            "status": state.get("status", "unknown"),
-        }
     except FileNotFoundError:
         return {"session_id": session_id, "status": "not_found"}
+
+    result: dict[str, Any] = {
+        "session_id": session_id,
+        "current_step": state.get("current_step", "unknown"),
+        "status": state.get("status", "unknown"),
+    }
+
+    # If the pipeline has already reached interview_ready or complete,
+    # include the cached artifacts so the frontend can skip SSE.
+    pipeline_status = state.get("status", "")
+    if pipeline_status in ("interview_ready", "complete", "interview_active"):
+        # Parsed files
+        if store.exists("parsed"):
+            parsed_dir = store.get_session_path() / "parsed"
+            result["parsed_files"] = [
+                f.stem for f in parsed_dir.iterdir() if f.suffix == ".json"
+            ]
+        # Try to get original filenames from metadata or raw_files
+        raw_files = store.list_raw_files()
+        if raw_files:
+            result["parsed_files"] = [f.name for f in raw_files]
+
+        # Question backlog
+        if store.exists("question_backlog.json"):
+            try:
+                backlog = store.load_json("question_backlog.json")
+                result["questions"] = [
+                    {
+                        "text": q.get("question_text", ""),
+                        "source_file": q.get("source_file_id", ""),
+                        "priority": q.get("priority", "P1"),
+                    }
+                    for q in backlog
+                    if q.get("status") == "open"
+                ]
+            except Exception:
+                pass
+
+    return result
 
 
 @router.get("/{session_id}/stream")

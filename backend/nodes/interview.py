@@ -259,6 +259,8 @@ async def interview_loop(state: OffboardingState) -> dict:
         user_response = interrupt({
             "question_id": next_q.question_id,
             "question_text": question_text,
+            "source_file": next_q.source_file_id or "",
+            "raw_question": next_q.question_text,
             "round": round_num + 1,
             "remaining": len(open_qs) - 1,
         })

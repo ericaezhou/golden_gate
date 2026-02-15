@@ -50,7 +50,7 @@ export function useManagerInterview(sessionId: string | null) {
       setState(prev => ({ ...prev, isAITyping: true }))
 
       // Poll until interview is active (pipeline might still be transitioning)
-      let question: { question_text?: string; remaining?: number; round?: number } | null = null
+      let question: { question_text?: string; source_file?: string; raw_question?: string; remaining?: number; round?: number } | null = null
       for (let attempt = 0; attempt < 30; attempt++) {
         try {
           const res = await fetch(`${API_BASE}/api/interview/${sessionId}/status`)
@@ -85,6 +85,8 @@ export function useManagerInterview(sessionId: string | null) {
         role: 'ai',
         content: question.question_text || '(Ready for your response)',
         timestamp: Date.now(),
+        sourceFile: question.source_file || undefined,
+        rawQuestion: question.raw_question || undefined,
       }
 
       setState(prev => ({
@@ -136,8 +138,8 @@ export function useManagerInterview(sessionId: string | null) {
 
       const data = await res.json()
 
-      // Accumulate extracted facts as "priorities" in the sidebar
-      const newFacts: string[] = data.facts_extracted || []
+      // Use all_facts (cumulative) for the sidebar — more reliable than incremental
+      const allFacts: string[] = data.all_facts || data.facts_extracted || []
 
       if (data.interview_active && data.question) {
         // Next question
@@ -146,13 +148,15 @@ export function useManagerInterview(sessionId: string | null) {
           role: 'ai',
           content: data.question.question_text || '(Ready for your response)',
           timestamp: Date.now(),
+          sourceFile: data.question.source_file || undefined,
+          rawQuestion: data.question.raw_question || undefined,
         }
 
         setState(prev => ({
           ...prev,
           messages: [...prev.messages, aiMessage],
           isAITyping: false,
-          priorities: [...prev.priorities, ...newFacts],
+          priorities: allFacts,
           questionsRemaining: data.question.remaining ?? prev.questionsRemaining - 1,
           round: data.question.round ?? prev.round + 1,
         }))
@@ -162,7 +166,7 @@ export function useManagerInterview(sessionId: string | null) {
           ...prev,
           isAITyping: false,
           isComplete: true,
-          priorities: [...prev.priorities, ...newFacts],
+          priorities: allFacts.length > 0 ? allFacts : prev.priorities,
         }))
       }
     } catch (e) {

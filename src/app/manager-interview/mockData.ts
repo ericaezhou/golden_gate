@@ -22,6 +22,10 @@ export interface ConversationMessage {
   role: 'ai' | 'manager'
   content: string
   timestamp: number
+  /** Source file the question references (AI messages only) */
+  sourceFile?: string
+  /** The raw analytical question before rephrasing (AI messages only) */
+  rawQuestion?: string
 }
 
 export interface ScriptedExchange {

@@ -64,7 +64,7 @@ async def call_llm(
         response = await client.chat.completions.create(
             model=used_model,
             temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-            max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+            max_completion_tokens=max_tokens or settings.LLM_MAX_TOKENS,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -102,7 +102,7 @@ async def call_llm_json(
         response = await client.chat.completions.create(
             model=used_model,
             temperature=temperature if temperature is not None else settings.LLM_TEMPERATURE,
-            max_tokens=max_tokens or settings.LLM_MAX_TOKENS,
+            max_completion_tokens=max_tokens or settings.LLM_MAX_TOKENS,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
