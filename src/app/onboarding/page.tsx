@@ -329,14 +329,6 @@ function OnboardingContent() {
         <div className="text-center space-y-3">
           <div className="flex flex-wrap gap-3 justify-center">
             <a
-              href={`/handoff?session=${sessionId}`}
-              className="inline-block px-8 py-3 bg-amber-600 text-white font-semibold rounded-lg
-                         hover:bg-amber-700 transition-colors shadow-md
-                         focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
-            >
-              Continue to Handoff / Package →
-            </a>
-            <a
               href={`/graph?session=${sessionId}`}
               className="inline-block px-8 py-3 bg-white text-amber-600 font-semibold rounded-lg
                          border-2 border-amber-500 hover:bg-amber-50 transition-colors shadow-md

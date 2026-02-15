@@ -192,11 +192,20 @@ async def qa_loop(state: OnboardingState) -> dict:
     chat_history = state.get("chat_history", [])
     if chat_history:
         # Include recent conversation for continuity (last 6 messages)
+        # Messages may be dicts or LangChain message objects (HumanMessage/AIMessage) from checkpointer
         recent = chat_history[-6:] if len(chat_history) > 6 else chat_history
         context_lines = []
         for msg in recent:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
+            if isinstance(msg, dict):
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+            else:
+                role = getattr(msg, "type", "user") or "user"
+                if role == "human":
+                    role = "user"
+                elif role == "ai":
+                    role = "assistant"
+                content = getattr(msg, "content", "") or ""
             context_lines.append(f"{role}: {content}")
         user_prompt = (
             "Previous conversation:\n"
