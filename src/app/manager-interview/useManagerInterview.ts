@@ -1,166 +1,228 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import {
-  ConversationMessage,
-  CONVERSATION_SCRIPT,
-  TIMING,
-  getNextExchange,
-  isLastExchange,
-} from './mockData'
+import { useState, useCallback, useEffect } from 'react'
+import { ConversationMessage } from './mockData'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export interface InterviewState {
   messages: ConversationMessage[]
-  currentExchangeId: string | null
   inputValue: string
   isAITyping: boolean
   isComplete: boolean
-  priorities: string[]
+  priorities: string[]       // reused as "extracted facts" from interview
+  questionsRemaining: number
+  round: number
+  error: string | null
 }
 
 function generateMessageId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
 }
 
-export function useManagerInterview() {
+/**
+ * Hook that drives the real backend interview loop.
+ *
+ * Lifecycle:
+ *  1. On mount, poll GET /api/interview/{sessionId}/status until interview_active
+ *  2. Display the AI's rephrased question as a chat bubble
+ *  3. User types an answer and hits Send
+ *  4. POST /api/interview/{sessionId}/respond  →  get next question or completion
+ *  5. Repeat until interview_active === false
+ */
+export function useManagerInterview(sessionId: string | null) {
   const [state, setState] = useState<InterviewState>({
     messages: [],
-    currentExchangeId: null,
     inputValue: '',
     isAITyping: false,
     isComplete: false,
     priorities: [],
+    questionsRemaining: 0,
+    round: 0,
+    error: null,
   })
 
-  const hasStartedRef = useRef(false)
-  const charIndexRef = useRef(0)
-
-  // Get current exchange
-  const currentExchange = state.currentExchangeId
-    ? CONVERSATION_SCRIPT.find(e => e.id === state.currentExchangeId)
-    : null
-
-  // Start the conversation with first AI message (only once)
+  // ── Bootstrap: fetch the first question ──────────────────────────
   useEffect(() => {
-    if (hasStartedRef.current) return
-    hasStartedRef.current = true
+    if (!sessionId) return
 
-    const firstExchange = CONVERSATION_SCRIPT[0]
-    if (!firstExchange) return
+    let cancelled = false
 
-    setState(prev => ({ ...prev, isAITyping: true }))
+    async function fetchFirstQuestion() {
+      setState(prev => ({ ...prev, isAITyping: true }))
 
-    setTimeout(() => {
+      // Poll until interview is active (pipeline might still be transitioning)
+      let question: { question_text?: string; remaining?: number; round?: number } | null = null
+      for (let attempt = 0; attempt < 30; attempt++) {
+        try {
+          const res = await fetch(`${API_BASE}/api/interview/${sessionId}/status`)
+          if (!res.ok) {
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+          const data = await res.json()
+          if (data.interview_active && data.question) {
+            question = data.question
+            break
+          }
+        } catch {
+          // Network error — retry
+        }
+        await new Promise(r => setTimeout(r, 2000))
+      }
+
+      if (cancelled) return
+
+      if (!question) {
+        setState(prev => ({
+          ...prev,
+          isAITyping: false,
+          error: 'Could not connect to interview. The pipeline may still be running.',
+        }))
+        return
+      }
+
       const aiMessage: ConversationMessage = {
         id: generateMessageId(),
         role: 'ai',
-        content: firstExchange.aiMessage,
+        content: question.question_text || '(Ready for your response)',
         timestamp: Date.now(),
       }
 
       setState(prev => ({
         ...prev,
         messages: [aiMessage],
-        currentExchangeId: firstExchange.id,
         isAITyping: false,
+        questionsRemaining: question!.remaining ?? 0,
+        round: question!.round ?? 1,
       }))
-    }, TIMING.initialDelayMs)
-  }, [])
+    }
 
-  // Handle each keypress - add one character from the scripted response
-  const handleKeyPress = useCallback(() => {
-    if (state.isAITyping || state.isComplete) return
-    if (!currentExchange) return
+    fetchFirstQuestion()
+    return () => { cancelled = true }
+  }, [sessionId])
 
-    const targetText = currentExchange.managerResponse
+  // ── Send the user's answer ───────────────────────────────────────
+  const sendMessage = useCallback(async () => {
+    if (!state.inputValue.trim() || state.isAITyping || !sessionId) return
 
-    // If we've typed the full response, do nothing
-    if (charIndexRef.current >= targetText.length) return
+    const userText = state.inputValue.trim()
 
-    // Add one more character
-    charIndexRef.current++
-    setState(prev => ({
-      ...prev,
-      inputValue: targetText.slice(0, charIndexRef.current),
-    }))
-  }, [state.isAITyping, state.isComplete, currentExchange])
-
-  // Update input value (for direct edits, though not used in demo)
-  const setInputValue = useCallback((value: string) => {
-    setState(prev => ({ ...prev, inputValue: value }))
-  }, [])
-
-  // Send message
-  const sendMessage = useCallback(() => {
-    if (!state.inputValue.trim() || state.isAITyping || !currentExchange) return
-
-    // Reset char index for next response
-    charIndexRef.current = 0
-
-    // Add manager's message
-    const managerMessage: ConversationMessage = {
+    // Add user message to chat
+    const userMessage: ConversationMessage = {
       id: generateMessageId(),
-      role: 'manager',
-      content: state.inputValue.trim(),
+      role: 'manager',     // reusing 'manager' role for the departing employee's answers
+      content: userText,
       timestamp: Date.now(),
     }
 
-    // Extract priority from this exchange
-    const newPriorities = currentExchange.priorityExtracted
-      ? [...state.priorities, currentExchange.priorityExtracted]
-      : state.priorities
-
     setState(prev => ({
       ...prev,
-      messages: [...prev.messages, managerMessage],
+      messages: [...prev.messages, userMessage],
       inputValue: '',
       isAITyping: true,
-      priorities: newPriorities,
+      error: null,
     }))
 
-    // Check if this was the last exchange
-    if (isLastExchange(currentExchange.id)) {
-      // Complete the interview
-      setTimeout(() => {
+    try {
+      const res = await fetch(`${API_BASE}/api/interview/${sessionId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_response: userText }),
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
+        throw new Error(errData.detail || `Server returned ${res.status}`)
+      }
+
+      const data = await res.json()
+
+      // Accumulate extracted facts as "priorities" in the sidebar
+      const newFacts: string[] = data.facts_extracted || []
+
+      if (data.interview_active && data.question) {
+        // Next question
+        const aiMessage: ConversationMessage = {
+          id: generateMessageId(),
+          role: 'ai',
+          content: data.question.question_text || '(Ready for your response)',
+          timestamp: Date.now(),
+        }
+
+        setState(prev => ({
+          ...prev,
+          messages: [...prev.messages, aiMessage],
+          isAITyping: false,
+          priorities: [...prev.priorities, ...newFacts],
+          questionsRemaining: data.question.remaining ?? prev.questionsRemaining - 1,
+          round: data.question.round ?? prev.round + 1,
+        }))
+      } else {
+        // Interview complete
         setState(prev => ({
           ...prev,
           isAITyping: false,
           isComplete: true,
+          priorities: [...prev.priorities, ...newFacts],
         }))
-      }, TIMING.aiTypingIndicatorMs)
-      return
+      }
+    } catch (e) {
+      setState(prev => ({
+        ...prev,
+        isAITyping: false,
+        error: e instanceof Error ? e.message : 'Failed to send response',
+      }))
     }
+  }, [state.inputValue, state.isAITyping, sessionId])
 
-    // Get next exchange and send AI response
-    const nextExchange = getNextExchange(currentExchange.id)
-    if (!nextExchange) return
+  // ── End interview early ──────────────────────────────────────────
+  const endInterview = useCallback(async () => {
+    if (!sessionId) return
 
-    setTimeout(() => {
-      const aiMessage: ConversationMessage = {
-        id: generateMessageId(),
-        role: 'ai',
-        content: nextExchange.aiMessage,
-        timestamp: Date.now(),
+    setState(prev => ({ ...prev, isAITyping: true }))
+
+    try {
+      const res = await fetch(`${API_BASE}/api/interview/${sessionId}/end`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`)
       }
 
       setState(prev => ({
         ...prev,
-        messages: [...prev.messages, aiMessage],
-        currentExchangeId: nextExchange.id,
         isAITyping: false,
+        isComplete: true,
       }))
-    }, TIMING.aiTypingIndicatorMs)
-  }, [state.inputValue, state.isAITyping, state.priorities, currentExchange])
+    } catch (e) {
+      setState(prev => ({
+        ...prev,
+        isAITyping: false,
+        error: e instanceof Error ? e.message : 'Failed to end interview',
+      }))
+    }
+  }, [sessionId])
 
-  // Proceed to employee interview
-  const proceedToEmployeeInterview = useCallback(() => {
-    window.location.href = '/conversation'
+  // ── Update input value ───────────────────────────────────────────
+  const setInputValue = useCallback((value: string) => {
+    setState(prev => ({ ...prev, inputValue: value }))
   }, [])
+
+  // ── Keyboard: Enter to send ──────────────────────────────────────
+  const handleKeyPress = useCallback(() => {
+    // No-op: in live mode, the user types freely. handleKeyDown in ChatInput handles Enter.
+  }, [])
+
+  // ── Navigate to next page ────────────────────────────────────────
+  const proceedToEmployeeInterview = useCallback(() => {
+    window.location.href = `/handoff?session=${sessionId}`
+  }, [sessionId])
 
   return {
     ...state,
-    currentExchange,
     handleKeyPress,
     setInputValue,
     sendMessage,
+    endInterview,
     proceedToEmployeeInterview,
   }
 }

@@ -141,6 +141,18 @@ export function useScreeningProgressLive(sessionId: string) {
       }))
     })
 
+    es.addEventListener('interview_ready', (e: MessageEvent) => {
+      const data = JSON.parse(e.data)
+      setState(prev => ({
+        ...prev,
+        isComplete: true,
+        isRunning: false,
+        currentActivity: data.message || 'Analysis complete — ready for interview',
+        currentFile: null,
+      }))
+      es.close()
+    })
+
     es.addEventListener('complete', (e: MessageEvent) => {
       setState(prev => ({
         ...prev,
