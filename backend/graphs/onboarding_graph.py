@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
@@ -27,49 +25,44 @@ from backend.services.storage import SessionStorage
 
 logger = logging.getLogger(__name__)
 
-QA_SYSTEM_PROMPT = """
-You are a "Project QA Onboarding Agent".
+# ------------------------------------------------------------------
+# System prompts
+# ------------------------------------------------------------------
+NARRATIVE_SYSTEM = """\
+You are writing a guided onboarding narrative for a new team member \
+who will take over this project. Your audience has ZERO context — \
+this is the first thing they read.
 
-## Mission
-Help a new hire answer questions about the project by synthesizing ONLY from the persisted onboarding artifacts provided below. The project name, scope, and details are defined entirely by these artifacts.
+Given the onboarding package (abstract, introduction, details, FAQ, \
+risks), produce a clear, engaging narrative that:
 
-## Persisted Onboarding Artifacts (Sole Source of Truth)
-You MUST treat the following as the only reliable information. Do not use outside knowledge.
+1. Opens with a 1-paragraph "What is this project?" summary.
+2. Explains the business context — why it exists, who cares about it.
+3. Provides a **first-week checklist** (5-8 concrete items):
+   - Which files to open first and why
+   - Key things to verify still work
+   - People or teams to connect with
+4. Flags the **top 3 risks/gotchas** to be aware of immediately.
+5. Ends with a brief "You're ready" encouragement.
 
-### A) Interview Summary (high-level narrative from offboarding)
-{interview_summary_context}
+Write in clear prose with markdown formatting. Be practical and \
+specific — reference actual file names, processes, and people \
+from the materials provided."""
 
-### B) Text Summaries (curated written summaries)
-{text_summary_context}
+QA_SYSTEM_PROMPT_TEMPLATE = """\
+You are a knowledgeable assistant helping a new team member \
+understand a project they are taking over. You have access \
+to the following knowledge base from the previous owner's \
+files and exit interview.
 
-### C) Knowledge Graph (entities, relations, structured facts)
-{kg_context}
+{knowledge_base}
 
-### D) Deep Dives (persisted file extracts; most authoritative for technical specifics)
-{deep_dive_context}
-
-## Evidence & Citation Rules (Mandatory)
-1) Every factual claim must be supported by at least one citation to the artifacts above.
-2) Use inline citations with this format:
-   - [Interview Summary]
-   - [Text Summary]
-   - [KG]
-   - [Deep Dive: <file_name or section>]
-3) For technical specifics (APIs, schemas, architecture, deployment, data flow), prioritize Deep Dives first; if missing, fall back to KG, then summaries.
-
-## Answering Policy
-- If the artifacts do not contain the answer, say:
-  "I don't have specific information on <topic> in the persisted artifacts."
-  Then suggest what type of artifact would likely contain it (Interview / Summary / KG / Deep Dive) without inventing file names.
-- Do not guess, assume, or add best-practice advice unless explicitly supported by the artifacts.
-- If the question is ambiguous, ask up to 2 targeted clarification questions and state what missing detail blocks a grounded answer.
-
-## Output Format
-1) Answer (2-6 sentences, concise)
-2) Evidence (sentences with citations)
-3) If Missing: What's not in the artifacts (1-2 sentences)
-"""
-
+Rules:
+- Answer questions based ONLY on the knowledge base above.
+- Cite which file or interview answer your information comes from \
+  using [Deep Dive: file], [Interview Summary], or [Global Summary].
+- If you are not confident, say so and suggest what to investigate.
+- Be concise and practical — 2-6 sentences for most answers."""
 
 
 # ------------------------------------------------------------------
@@ -80,15 +73,48 @@ async def generate_narrative(state: OnboardingState) -> dict:
 
     Reads from: state["onboarding_package"], state["session_id"]
     Writes to:  state["narrative"], state["current_mode"]
-
-    TODO: Implement the LLM call.
-          See docs/implementation_design.md §5.2.
     """
     session_id = state["session_id"]
     package = state.get("onboarding_package")
+    store = SessionStorage(session_id)
 
-    # --- Placeholder ---
-    narrative = "[TODO] Generate narrative from onboarding package"
+    # Build the user prompt from the onboarding package
+    if package:
+        # Package can be a dict (from state) or OnboardingPackage object
+        if hasattr(package, "model_dump"):
+            pkg = package.model_dump()
+        elif isinstance(package, dict):
+            pkg = package
+        else:
+            pkg = {}
+
+        user_prompt = (
+            f"## Abstract\n{pkg.get('abstract', '')}\n\n"
+            f"## Introduction\n{pkg.get('introduction', '')}\n\n"
+            f"## Details\n{pkg.get('details', '')}\n\n"
+            f"## FAQ\n"
+        )
+        for item in pkg.get("faq", []):
+            user_prompt += f"Q: {item.get('q', '')}\nA: {item.get('a', '')}\n\n"
+        user_prompt += "## Risks & Gotchas\n"
+        for risk in pkg.get("risks_and_gotchas", []):
+            user_prompt += f"- {risk}\n"
+    else:
+        # Fallback: try loading from disk
+        try:
+            pkg = store.load_json("onboarding_package/package.json")
+            user_prompt = json.dumps(pkg, indent=2)
+        except FileNotFoundError:
+            logger.warning("No onboarding package found for session %s", session_id)
+            return {
+                "narrative": "(Onboarding package not yet generated. Run the offboarding pipeline first.)",
+                "current_mode": "narrative",
+            }
+
+    narrative = await call_llm(NARRATIVE_SYSTEM, user_prompt)
+
+    # Persist the generated narrative
+    store.save_text("onboarding_narrative.md", narrative)
 
     return {
         "narrative": narrative,
@@ -106,53 +132,75 @@ async def qa_loop(state: OnboardingState) -> dict:
     Each turn: LLM answers grounded in the deep dives + interview knowledge.
     No vector retrieval — the full knowledge base is the system prompt.
 
-    Reads from: state["session_id"], state["chat_history"]
-    Writes to:  state["chat_history"], state["current_mode"]
+    Reads from: state["session_id"], state["qa_system_prompt"]
+    Writes to:  state["chat_history"]
     """
     session_id = state["session_id"]
+    store = SessionStorage(session_id)
 
     # Wait for user question (resume payload may be str or dict e.g. {"question": "..."})
     raw_input = interrupt({
         "prompt": "Ask any question about the project.",
         "mode": "qa",
     })
+    # Normalise: the frontend may send a plain string or a dict
     if isinstance(raw_input, dict):
         user_input = raw_input.get("question", raw_input.get("content", str(raw_input)))
     else:
         user_input = str(raw_input)
 
-    # Load context from session storage (same paths offboarding graph writes)
-    interview_summary_context = ""
-    if os.path.exists("../../output/interview_summary.txt"):
-        interview_summary_context = open("../../output/interview_summary.txt", "r").read()
+    # --- Load the knowledge base for the system prompt ---
+    # Priority: use qa_system_prompt from state, fall back to file
+    knowledge_base = state.get("qa_system_prompt", "")
+    if not knowledge_base:
+        # Try loading the pre-built QA system prompt
+        if store.exists("qa_system_prompt.txt"):
+            knowledge_base = store.load_text("qa_system_prompt.txt")
+        else:
+            # Fallback: assemble from individual files
+            sections = []
+            if store.exists("deep_dive_corpus.txt"):
+                sections.append("== FILE ANALYSIS ==\n" + store.load_text("deep_dive_corpus.txt"))
+            elif store.exists("deep_dive_corpus.json"):
+                data = store.load_json("deep_dive_corpus.json")
+                sections.append("== FILE ANALYSIS ==\n" + data.get("corpus", ""))
+            if store.exists("interview/interview_summary.txt"):
+                sections.append("== INTERVIEW SUMMARY ==\n" + store.load_text("interview/interview_summary.txt"))
+            if store.exists("global_summary.json"):
+                data = store.load_json("global_summary.json")
+                sections.append("== GLOBAL SUMMARY ==\n" + data.get("global_summary", ""))
+            knowledge_base = "\n\n".join(sections) if sections else "(No knowledge base available)"
 
-    text_summary_context = ""
-    if os.path.exists("../../output/text_summary.txt"):
-        text_summary_context = open("../../output/text_summary.txt", "r").read()
+    # Build the system prompt
+    system_prompt = QA_SYSTEM_PROMPT_TEMPLATE.format(knowledge_base=knowledge_base)
 
-    kg_context = "No KG available."
-    if os.path.exists("../../output/knowledge_graph.json"):
-        kg_data = json.load(open("../../output/knowledge_graph.json", "r"))
-        kg_context = json.dumps(kg_data, indent=2)
+    # Build user message with conversation context
+    chat_history = state.get("chat_history", [])
+    if chat_history:
+        # Include recent conversation for continuity (last 6 messages)
+        recent = chat_history[-6:] if len(chat_history) > 6 else chat_history
+        context_lines = []
+        for msg in recent:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            context_lines.append(f"{role}: {content}")
+        user_prompt = (
+            "Previous conversation:\n"
+            + "\n".join(context_lines)
+            + f"\n\nNew question: {user_input}"
+        )
+    else:
+        user_prompt = user_input
 
-    deep_dive_context = ""
-    if os.path.exists("../../output/deep_dives.txt"):
-        deep_dive_context = open("../../output/deep_dives.txt", "r").read()
+    # Call LLM — call_llm returns a string
+    answer = await call_llm(system_prompt, user_prompt)
 
-    formatted_system = QA_SYSTEM_PROMPT.format(
-        interview_summary_context=interview_summary_context,
-        text_summary_context=text_summary_context,
-        kg_context=kg_context,
-        deep_dive_context=deep_dive_context,
-    )
-    # call_llm(system_prompt, user_prompt) returns str
-    user_prompt = f"User Question: {user_input}"
-    response_text = await call_llm(system_prompt=formatted_system, user_prompt=user_prompt)
-
+    # Return new messages — OnboardingState uses add_messages reducer,
+    # so returning a list appends to existing chat_history
     return {
         "chat_history": [
             {"role": "user", "content": user_input},
-            {"role": "assistant", "content": response_text},
+            {"role": "assistant", "content": answer},
         ],
         "current_mode": "qa",
     }
