@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.routes import interview, offboarding, onboarding, session
+from backend.routes import interview, offboarding, onboarding, projects, session
 
 # ------------------------------------------------------------------
 # Logging
@@ -71,6 +71,7 @@ app.add_middleware(
 # ------------------------------------------------------------------
 # Routers
 # ------------------------------------------------------------------
+app.include_router(projects.router)
 app.include_router(offboarding.router)
 app.include_router(interview.router)
 app.include_router(onboarding.router)

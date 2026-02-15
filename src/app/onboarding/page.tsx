@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -172,12 +173,20 @@ function OnboardingContent() {
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-6 md:p-8">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-amber-600">Golden Gate</h1>
-          <p className="text-gray-500 text-sm mt-1">Onboarding Narrative</p>
-          {projectName && (
-            <p className="text-gray-700 font-medium mt-2">{projectName}</p>
-          )}
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-bold text-amber-600">Golden Gate</h1>
+            <p className="text-gray-500 text-sm mt-1">Onboarding Narrative</p>
+            {projectName && (
+              <p className="text-gray-700 font-medium mt-2">{projectName}</p>
+            )}
+          </div>
+          <Link
+            href="/"
+            className="shrink-0 px-4 py-2 text-sm font-semibold text-amber-600 hover:text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-50 transition-colors"
+          >
+            Leave
+          </Link>
         </div>
 
         {/* Narrative card */}

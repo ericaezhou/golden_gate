@@ -173,12 +173,12 @@ function InterviewSummaryContent() {
             {/* Continue */}
             <div className="text-center">
               <a
-                href={`/onboarding?session=${sessionId}`}
+                href="/"
                 className="inline-block px-8 py-3 bg-amber-600 text-white font-semibold rounded-lg
                            hover:bg-amber-700 transition-colors shadow-md
                            focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
               >
-                View Onboarding Narrative →
+                Leave
               </a>
             </div>
           </>

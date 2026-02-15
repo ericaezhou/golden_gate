@@ -22,6 +22,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from backend.config import settings
 from backend.graphs.registry import get_offboarding_graph
+from backend.services.project_sessions import register_project, get_session_id_by_project
 from backend.services.storage import SessionStorage, create_session
 
 DEMO_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
@@ -312,13 +313,23 @@ async def start_offboarding(
 ) -> dict[str, Any]:
     """Upload files and kick off the full offboarding pipeline.
 
-    The pipeline runs parse → deep_dive → concat → global → reconcile →
+    project_name must be unique (not already registered). The pipeline runs
+    parse → deep_dive → concat → global → reconcile →
     interview (pauses at interrupt) → package + qa_context.
 
     Returns the session_id used for all subsequent calls.
     """
+    name_key = project_name.strip()
+    if not name_key:
+        raise HTTPException(status_code=400, detail="Project name is required.")
+    if get_session_id_by_project(project_name) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Project '{name_key}' already exists. Use a different project name for off-boarding.",
+        )
     store = create_session(project_name, role, timeline)
     session_id = store.session_id
+    register_project(project_name, session_id)
 
     # Save uploaded files
     for f in files:

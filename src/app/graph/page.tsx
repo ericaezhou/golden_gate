@@ -30,24 +30,41 @@ function GraphPageContent() {
             <span style={{ fontSize: 13, color: "#94a3b8" }}>session: {sessionId}</span>
           )}
         </div>
-        {sessionId ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {sessionId && (
+            <Link
+              href={`/onboarding?session=${sessionId}`}
+              style={{
+                padding: "8px 16px",
+                background: "#f59e0b",
+                color: "white",
+                fontWeight: 600,
+                borderRadius: 8,
+                textDecoration: "none",
+                fontSize: 14,
+              }}
+            >
+              ← Onboarding Narrative
+            </Link>
+          )}
           <Link
-            href={`/onboarding?session=${sessionId}`}
+            href="/"
             style={{
               padding: "8px 16px",
-              background: "#f59e0b",
-              color: "white",
+              background: "#e2e8f0",
+              color: "#475569",
               fontWeight: 600,
               borderRadius: 8,
               textDecoration: "none",
               fontSize: 14,
             }}
           >
-            ← Onboarding Narrative
+            Leave
           </Link>
-        ) : (
-          <p style={{ fontSize: 14, color: "#64748b" }}>Add ?session=... to load a graph</p>
-        )}
+          {!sessionId && (
+            <p style={{ fontSize: 14, color: "#64748b" }}>Add ?session=... to load a graph</p>
+          )}
+        </div>
       </header>
       <div style={{ flex: 1, minHeight: 0 }}>
         <GraphView sessionId={sessionId} />

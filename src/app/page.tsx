@@ -1,246 +1,101 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { FileIcon, getFileExt } from './components/FileIcon'
+import { useState } from 'react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-const extBadgeColors: Record<string, string> = {
-  xlsx: 'bg-green-100 text-green-700',
-  xls: 'bg-green-100 text-green-700',
-  csv: 'bg-green-100 text-green-700',
-  py: 'bg-blue-100 text-blue-700',
-  ipynb: 'bg-orange-100 text-orange-700',
-  sql: 'bg-indigo-100 text-indigo-700',
-  sqlite: 'bg-indigo-100 text-indigo-700',
-  db: 'bg-indigo-100 text-indigo-700',
-  pdf: 'bg-red-100 text-red-700',
-  pptx: 'bg-orange-100 text-orange-700',
-  ppt: 'bg-orange-100 text-orange-700',
-  docx: 'bg-blue-100 text-blue-700',
-  doc: 'bg-blue-100 text-blue-700',
-}
-
-export default function Home() {
+export default function EntryPage() {
   const router = useRouter()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [files, setFiles] = useState<File[]>([])
   const [projectName, setProjectName] = useState('')
-  const [isDragging, setIsDragging] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [onboardError, setOnboardError] = useState<string | null>(null)
+  const [isLookingUp, setIsLookingUp] = useState(false)
 
-  // Preload demo files from backend
-  useEffect(() => {
-    async function loadDemoFiles() {
-      try {
-        const res = await fetch(`${API_BASE}/api/offboarding/demo-files`)
-        if (!res.ok) return
-        const filenames: string[] = await res.json()
-
-        const fetched = await Promise.all(
-          filenames.map(async (name) => {
-            const r = await fetch(`${API_BASE}/api/offboarding/demo-files/${encodeURIComponent(name)}`)
-            if (!r.ok) return null
-            const blob = await r.blob()
-            return new File([blob], name, { type: blob.type })
-          })
-        )
-
-        const valid = fetched.filter((f): f is File => f !== null)
-        if (valid.length > 0) {
-          setFiles(valid)
-          setProjectName('Credit Risk Forecasting')
-        }
-      } catch {
-        // Demo files not available — ignore
-      }
-    }
-    loadDemoFiles()
-  }, [])
-
-  const addFiles = useCallback((newFiles: FileList | File[]) => {
-    setFiles(prev => {
-      const existing = new Set(prev.map(f => f.name))
-      const unique = Array.from(newFiles).filter(f => !existing.has(f.name))
-      return [...prev, ...unique]
-    })
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleOnboardingSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsDragging(false)
-    if (e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files)
-    }
-  }, [addFiles])
-
-  const removeFile = (name: string) => {
-    setFiles(prev => prev.filter(f => f.name !== name))
-  }
-
-  const handleStartOffboarding = async () => {
-    if (files.length === 0) {
-      setError('Please add at least one file to analyze.')
+    const name = projectName.trim()
+    if (!name) {
+      setOnboardError('Please enter a project name.')
       return
     }
-    if (!projectName.trim()) {
-      setError('Please enter a project name.')
-      return
-    }
-
-    setError(null)
-    setIsSubmitting(true)
-
+    setOnboardError(null)
+    setIsLookingUp(true)
     try {
-      const formData = new FormData()
-      formData.append('project_name', projectName.trim())
-      formData.append('role', '')
-      for (const file of files) {
-        formData.append('files', file)
-      }
-
-      const res = await fetch(`${API_BASE}/api/offboarding/start`, {
-        method: 'POST',
-        body: formData,
-      })
-
+      const res = await fetch(
+        `${API_BASE}/api/projects/session?${new URLSearchParams({ project_name: name })}`
+      )
       if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`)
+        if (res.status === 404) {
+          setOnboardError('Project not found. Run off-boarding first with this project name.')
+          return
+        }
+        const body = await res.json().catch(() => ({}))
+        const msg = body.detail ?? `Error ${res.status}`
+        setOnboardError(typeof msg === 'string' ? msg : msg[0]?.msg ?? String(body.detail))
+        return
       }
-
       const data = await res.json()
-      router.push(`/screening?session=${data.session_id}`)
+      router.push(`/onboarding?session=${data.session_id}`)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to start analysis')
-      setIsSubmitting(false)
+      setOnboardError(e instanceof Error ? e.message : 'Lookup failed')
+    } finally {
+      setIsLookingUp(false)
     }
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-10 max-w-2xl w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-amber-600 mb-1">
-            Golden Gate
-          </h1>
-          <p className="text-gray-500 text-sm">
-            Offboarding &ndash; Onboarding Agent
-          </p>
+      <div className="w-full max-w-2xl space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-amber-600 mb-1">Golden Gate</h1>
+          <p className="text-gray-500 text-sm">Offboarding &ndash; Onboarding Agent</p>
         </div>
 
-        {/* Project Name */}
-        <div className="mb-6">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Project Name
-          </label>
-          <p className="text-xs text-gray-400 mb-2">The project or workstream being transitioned</p>
-          <input
-            type="text"
-            value={projectName}
-            onChange={e => setProjectName(e.target.value)}
-            placeholder="e.g. Credit Risk Forecasting"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm
-                       focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          />
-        </div>
+        <div className="grid gap-6 sm:grid-cols-2">
+          {/* Off-boarding: new project */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 flex flex-col">
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Off-boarding</h2>
+            <p className="text-sm text-gray-500 mb-6 flex-1">
+              Start a new project. Upload files and run the knowledge capture pipeline. Use a unique project name.
+            </p>
+            <Link
+              href="/offboarding"
+              className="w-full px-6 py-3 font-semibold text-center rounded-lg bg-amber-600 text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+            >
+              Start new project
+            </Link>
+          </div>
 
-        {/* Drop zone */}
-        <div className="mb-6">
-          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-            Files to Analyze
-          </label>
-          <p className="text-xs text-gray-400 mb-2">Upload the outgoing employee&apos;s artefacts and documentation</p>
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`
-              border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
-              transition-colors duration-150
-              ${isDragging
-                ? 'border-amber-500 bg-amber-50'
-                : 'border-gray-300 hover:border-gray-400 bg-gray-50'
-              }
-            `}
-          >
-            <p className="text-sm text-gray-500">
-              {isDragging ? 'Drop files here' : 'Drag & drop files or click to browse'}
+          {/* On-boarding: existing project by name */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8 flex flex-col">
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">On-boarding</h2>
+            <p className="text-sm text-gray-500 mb-4 flex-1">
+              Continue an existing project. Enter the project name to open its narrative and knowledge graph.
             </p>
-            <p className="text-xs text-gray-400 mt-1">
-              .xlsx, .py, .docx, .pdf, .pptx, .ipynb, .sql, .csv, .txt
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={e => { if (e.target.files) addFiles(e.target.files) }}
-            />
+            <form onSubmit={handleOnboardingSubmit} className="space-y-3">
+              <input
+                type="text"
+                value={projectName}
+                onChange={e => { setProjectName(e.target.value); setOnboardError(null) }}
+                placeholder="Project name"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              />
+              {onboardError && (
+                <p className="text-sm text-red-600">{onboardError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={isLookingUp}
+                className="w-full px-6 py-3 font-semibold rounded-lg bg-gray-800 text-white hover:bg-gray-900 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+              >
+                {isLookingUp ? 'Looking up...' : 'Continue to onboarding'}
+              </button>
+            </form>
           </div>
         </div>
 
-        {/* File list */}
-        {files.length > 0 && (
-          <div className="mb-6 space-y-2">
-            {files.map(f => {
-              const ext = getFileExt(f.name)
-              const badgeColor = extBadgeColors[ext] || 'bg-gray-100 text-gray-500'
-              return (
-                <div
-                  key={f.name}
-                  className="flex items-center justify-between text-sm text-gray-700
-                             bg-gray-50 hover:bg-gray-100 px-3 py-2.5 rounded-lg
-                             border border-gray-200 transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileIcon ext={ext} />
-                    <span className="truncate">{f.name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-mono font-medium ${badgeColor}`}>
-                      .{ext}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); removeFile(f.name) }}
-                    className="text-gray-300 hover:text-red-500 ml-2 flex-shrink-0
-                               opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <p className="text-sm text-red-600 mb-4">{error}</p>
-        )}
-
-        {/* Start Button */}
-        <button
-          onClick={handleStartOffboarding}
-          disabled={isSubmitting}
-          className={`
-            w-full px-8 py-3.5 font-semibold text-base rounded-lg
-            transition-all duration-150
-            focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
-            ${isSubmitting
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 shadow-md hover:shadow-lg'
-            }
-          `}
-        >
-          {isSubmitting ? 'Starting...' : 'Start Knowledge Capture'}
-        </button>
-
-        <p className="mt-8 text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-400 text-center">
           Golden Gate &mdash; AI-powered knowledge transfer for seamless transitions
         </p>
       </div>

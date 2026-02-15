@@ -11,6 +11,7 @@ import logging
 from typing import Any
 import os
 import json
+from data_delivery.run import build_kg
 
 from fastapi import APIRouter, HTTPException
 
@@ -189,6 +190,16 @@ async def get_kg(session_id: str) -> dict[str, Any]:
             raw = data.get("kg", data) if isinstance(data, dict) else {}
             if isinstance(raw, dict) and ("nodes" in raw or "edges" in raw):
                 kg = raw
+    interview_summary = store.load_text("interview/interview_summary.txt")
+    kg = build_kg(interview_summary, os.path.join(str(store.root), "parsed"))
+    if isinstance(kg, dict) and ("nodes" in kg or "edges" in kg):
+        kg = kg
+    else:
+        kg = {
+            "nodes": [],
+            "edges": [],
+        }
+    store.save_json("kg.json", kg)
     return {
         "session_id": session_id,
         "kg": kg,
