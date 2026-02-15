@@ -274,6 +274,16 @@ async def interview_loop(state: OffboardingState) -> dict:
         raw_file_id = next_q.source_file_id or ""
         source_display = file_id_map.get(raw_file_id, raw_file_id)
 
+        # For discovered/follow-up questions that lost their source_file_id,
+        # try to infer from the most recent conversation context
+        if not source_display and transcript:
+            last_turn = transcript[-1]
+            # Use the previous question's source as context
+            for q in backlog:
+                if q.question_id == last_turn.question_id and q.source_file_id:
+                    source_display = file_id_map.get(q.source_file_id, q.source_file_id)
+                    break
+
         # Pause and wait for user response via frontend
         user_response = interrupt({
             "question_id": next_q.question_id,
@@ -328,7 +338,7 @@ async def interview_loop(state: OffboardingState) -> dict:
 
         # Add newly discovered questions from this answer
         for dq in discovered:
-            _add_discovered_question(backlog, dq)
+            _add_discovered_question(backlog, dq, parent_file_id=next_q.source_file_id)
 
         round_num += 1
 
@@ -507,7 +517,11 @@ def _add_follow_up(
     )
 
 
-def _add_discovered_question(backlog: list[Question], dq: dict) -> None:
+def _add_discovered_question(
+    backlog: list[Question],
+    dq: dict,
+    parent_file_id: str | None = None,
+) -> None:
     """Add a newly discovered question to the backlog."""
     priority_str = dq.get("priority", "P1")
     try:
@@ -519,6 +533,7 @@ def _add_discovered_question(backlog: list[Question], dq: dict) -> None:
         question_id=f"discovered-{uuid.uuid4().hex[:8]}",
         question_text=dq.get("text", ""),
         origin=QuestionOrigin.FOLLOW_UP,
+        source_file_id=parent_file_id,
         priority=priority,
         status=QuestionStatus.OPEN,
     )

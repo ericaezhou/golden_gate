@@ -165,6 +165,12 @@ async def respond_to_question(
     if has_interrupt or (graph_state and graph_state.next):
         # Still in interview — extract the next question
         question_data = _extract_interrupt(graph_state)
+        logger.info(
+            "Next question data for %s: keys=%s, source_file=%s",
+            session_id,
+            list(question_data.keys()) if isinstance(question_data, dict) else type(question_data),
+            question_data.get("source_file") if isinstance(question_data, dict) else "N/A",
+        )
 
         store.save_json("graph_state.json", {
             "status": "interview_active",
