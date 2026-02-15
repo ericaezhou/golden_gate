@@ -95,6 +95,20 @@ export const KNOWLEDGE_GAPS: KnowledgeGap[] = [
   },
   {
     id: 'gap-3',
+    title: 'Committee meeting cadence',
+    description: 'Risk committee schedule and escalation path referenced but not defined',
+    severity: 'low',
+    discoveredAtTaskId: 'documents',
+  },
+  {
+    id: 'gap-4',
+    title: 'Data source refresh frequency',
+    description: 'External data feed update schedule not specified in spreadsheets',
+    severity: 'low',
+    discoveredAtTaskId: 'spreadsheets',
+  },
+  {
+    id: 'gap-3',
     title: 'Legacy Shortcut vs. Policy Method',
     description: 'Two calculation methods exist (12-quarter policy vs. 4-quarter shortcut) with no documented criteria for when to use which',
     severity: 'medium',

@@ -1,94 +1,242 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
-const employee = {
-  name: 'Alice Chen',
-  title: 'Risk Analyst',
-  department: 'Credit Risk',
-  initials: 'AC',
-  context: 'Manages quarterly credit loss forecasts',
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export default function Home() {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [projectName, setProjectName] = useState('')
+  const [role, setRole] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleStartOffboarding = () => {
-    router.push('/screening')
+  // Preload demo files from backend
+  useEffect(() => {
+    async function loadDemoFiles() {
+      try {
+        const res = await fetch(`${API_BASE}/api/offboarding/demo-files`)
+        if (!res.ok) return
+        const filenames: string[] = await res.json()
+
+        const fetched = await Promise.all(
+          filenames.map(async (name) => {
+            const r = await fetch(`${API_BASE}/api/offboarding/demo-files/${encodeURIComponent(name)}`)
+            if (!r.ok) return null
+            const blob = await r.blob()
+            return new File([blob], name, { type: blob.type })
+          })
+        )
+
+        const valid = fetched.filter((f): f is File => f !== null)
+        if (valid.length > 0) {
+          setFiles(valid)
+          setProjectName('Credit Risk Forecasting')
+          setRole('Risk Analyst')
+        }
+      } catch {
+        // Demo files not available — ignore
+      }
+    }
+    loadDemoFiles()
+  }, [])
+
+  const addFiles = useCallback((newFiles: FileList | File[]) => {
+    setFiles(prev => {
+      const existing = new Set(prev.map(f => f.name))
+      const unique = Array.from(newFiles).filter(f => !existing.has(f.name))
+      return [...prev, ...unique]
+    })
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files)
+    }
+  }, [addFiles])
+
+  const removeFile = (name: string) => {
+    setFiles(prev => prev.filter(f => f.name !== name))
+  }
+
+  const handleStartOffboarding = async () => {
+    if (files.length === 0) {
+      setError('Please add at least one file to analyze.')
+      return
+    }
+    if (!projectName.trim()) {
+      setError('Please enter a project name.')
+      return
+    }
+
+    setError(null)
+    setIsSubmitting(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('project_name', projectName.trim())
+      formData.append('role', role.trim())
+      for (const file of files) {
+        formData.append('files', file)
+      }
+
+      const res = await fetch(`${API_BASE}/api/offboarding/start`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`)
+      }
+
+      const data = await res.json()
+      router.push(`/screening?session=${data.session_id}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start analysis')
+      setIsSubmitting(false)
+    }
+  }
+
+  const fileIcon = (name: string) => {
+    const ext = name.split('.').pop()?.toLowerCase()
+    switch (ext) {
+      case 'xlsx': case 'xls': case 'csv': return '📊'
+      case 'py': return '🐍'
+      case 'ipynb': return '📓'
+      case 'sql': case 'sqlite': case 'db': return '🗄️'
+      case 'pdf': return '📕'
+      case 'pptx': case 'ppt': return '📑'
+      case 'docx': case 'doc': return '📄'
+      default: return '📎'
+    }
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex items-center justify-center p-8">
-      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">
-          Bridge AI
-        </h1>
-        <p className="text-gray-500 mb-8">
-          Knowledge Capture & Transfer
-        </p>
-
-        <div className="flex flex-col items-center gap-4">
-          {/* Employee Avatar */}
-          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 ring-4 ring-gray-100 flex items-center justify-center">
-            <span className="text-3xl font-bold text-white">
-              {employee.initials}
-            </span>
-          </div>
-
-          {/* Employee Info */}
-          <div className="mt-2">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {employee.name}
-            </h2>
-            <p className="text-gray-500">
-              {employee.title}
-            </p>
-            <p className="text-sm text-gray-400 mt-1">
-              {employee.department}
-            </p>
-          </div>
-
-          {/* Context */}
-          <div className="mt-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-800">
-              {employee.context}
-            </p>
-          </div>
-
-          {/* Files to Analyze */}
-          <div className="mt-4 w-full text-left">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Files to Analyze
-            </p>
-            <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <span>📊</span>
-                <span>Q3_Loss_Forecast.xlsx</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>🐍</span>
-                <span>loss_model.py</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span>📄</span>
-                <span>Risk_Committee_Notes.docx</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Start Button */}
-          <button
-            onClick={handleStartOffboarding}
-            className="mt-6 w-full px-8 py-3 bg-blue-600 text-white font-medium rounded-lg
-                       hover:bg-blue-700 active:bg-blue-800
-                       transition-colors duration-150
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Start Knowledge Capture
-          </button>
+      <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+            Bridge AI
+          </h1>
+          <p className="text-gray-500">
+            Knowledge Capture & Transfer
+          </p>
         </div>
 
-        <p className="mt-6 text-xs text-gray-400">
+        {/* Project Name */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Project Name
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={e => setProjectName(e.target.value)}
+            placeholder="e.g. Credit Risk Forecasting"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Role */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Role (optional)
+          </label>
+          <input
+            type="text"
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            placeholder="e.g. Risk Analyst"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Drop zone */}
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Files to Analyze
+          </label>
+          <div
+            onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+              transition-colors duration-150
+              ${isDragging
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-300 hover:border-gray-400 bg-gray-50'
+              }
+            `}
+          >
+            <p className="text-sm text-gray-500">
+              {isDragging ? 'Drop files here' : 'Drag & drop files or click to browse'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              xlsx, py, docx, pdf, pptx, ipynb, sql, csv, txt
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={e => { if (e.target.files) addFiles(e.target.files) }}
+            />
+          </div>
+        </div>
+
+        {/* File list */}
+        {files.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {files.map(f => (
+              <div key={f.name} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span>{fileIcon(f.name)}</span>
+                  <span className="truncate">{f.name}</span>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeFile(f.name) }}
+                  className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <p className="text-sm text-red-600 mb-4">{error}</p>
+        )}
+
+        {/* Start Button */}
+        <button
+          onClick={handleStartOffboarding}
+          disabled={isSubmitting}
+          className={`
+            w-full px-8 py-3 font-medium rounded-lg
+            transition-colors duration-150
+            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+            ${isSubmitting
+              ? 'bg-blue-400 text-white cursor-not-allowed'
+              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+            }
+          `}
+        >
+          {isSubmitting ? 'Starting...' : 'Start Knowledge Capture'}
+        </button>
+
+        <p className="mt-6 text-xs text-gray-400 text-center">
           AI-powered knowledge transfer for seamless transitions
         </p>
       </div>
