@@ -106,18 +106,28 @@ def _load_knowledge_base(store: SessionStorage) -> str:
 # ------------------------------------------------------------------
 @router.get("/{session_id}/narrative")
 async def get_narrative(session_id: str) -> dict[str, Any]:
-    """Return or generate the onboarding narrative.
+    """Return or generate the onboarding narrative (same logic as onboarding graph generate_narrative).
 
-    First checks for a cached narrative (onboarding_narrative.md).
-    If not found, generates one from the onboarding package via LLM.
+    Response: { session_id, project_name?, narrative_md, cached }.
+    - If onboarding_narrative.md exists: return it (cached=True).
+    - Else if onboarding_package/package.json exists: generate via LLM, save to onboarding_narrative.md, return (cached=False).
+    - Else: 404.
     """
     store = SessionStorage(session_id)
+
+    project_name = ""
+    try:
+        meta = store.load_json("metadata.json")
+        project_name = meta.get("project_name", "") if isinstance(meta, dict) else ""
+    except FileNotFoundError:
+        pass
 
     # Return cached narrative if available
     if store.exists("onboarding_narrative.md"):
         narrative = store.load_text("onboarding_narrative.md")
         return {
             "session_id": session_id,
+            "project_name": project_name,
             "narrative_md": narrative,
             "cached": True,
         }
@@ -131,7 +141,7 @@ async def get_narrative(session_id: str) -> dict[str, Any]:
 
     package = store.load_json("onboarding_package/package.json")
 
-    # Build user prompt from package
+    # Build user prompt from package (aligned with onboarding_graph.generate_narrative)
     user_prompt = (
         f"## Abstract\n{package.get('abstract', '')}\n\n"
         f"## Introduction\n{package.get('introduction', '')}\n\n"
@@ -149,6 +159,7 @@ async def get_narrative(session_id: str) -> dict[str, Any]:
 
     return {
         "session_id": session_id,
+        "project_name": project_name,
         "narrative_md": narrative,
         "cached": False,
     }
