@@ -24,29 +24,30 @@
 * iterative deep dive reports
 * a managed question backlog (unified, deduped, prioritized, status-tracked)
 * interview transcript + extracted facts
-* final onboarding package documents
-* retrieval index (vector + keyword/hybrid)
+* final onboarding package (LLM remix of deep dives + interview facts)
+* QA agent system prompt (deep dives + interview summary as plain text)
 
 ### B) Onboarding Graph (runs later when new hire arrives)
 
 **Inputs (from store)**
 
 * onboarding package docs
-* retrieval index
-* structured file records (optional, for deeper citations)
+* QA system prompt text (deep dives + interview summary)
+* structured files JSON + interview summary (for on-demand knowledge graph generation)
 
 **Outputs**
 
 * onboarding narrative (abstract → intro → details)
-* Q&A agent behavior with “gap ticket” fallback
+* knowledge graph visualization (generated on-demand via tool call, not pre-built)
+* Q&A agent powered by system-prompt context (no vector DB for MVP)
 
 ### Shared Knowledge Store (what both graphs read/write)
 
-Use an object store + DB + vector index (pick the simplest for MVP):
+For MVP, use **local files only** (no database, no vector store):
 
-* **Object store**: raw files, parsed JSON, generated markdown docs
-* **DB**: project/session metadata, question backlog states, extracted facts
-* **Vector/Hybrid index**: embeddings + optional keyword index for precise lookup (esp. spreadsheets / model names)
+* **JSON files**: parsed files, deep dive reports, question backlog
+* **Text files**: deep dive corpus, interview summary, QA system prompt
+* **Markdown files**: onboarding package document
 
 Key ID scheme (MVP):
 
@@ -211,51 +212,37 @@ Persist continuously:
 
 ---
 
-## 5) “Interview summary including extracted knowledge” → “Onboarding package”
+## 5) Post-interview outputs (three parallel tracks)
 
-After interview, generate clean artifacts:
+After the interview completes, three outputs are generated:
 
-### Knowledge entries (structured)
+### Track A: Onboarding package (LLM remix)
 
-Turn facts into reusable entries:
+The onboarding package is an **LLM-processed remix** of `deep_dive_corpus` + `extracted_facts`. The LLM synthesizes file-level analysis with interview insights into a coherent document.
+
+**Knowledge entries** — structured facts:
 
 * decision rationales
 * manual override rules
 * workflow steps
 * gotchas / failure modes
-* “political reality” / stakeholder constraints (if relevant to finance consulting flows)
+* stakeholder constraints
 
-### Onboarding package docs (for human readability)
-
-Create:
+**Onboarding document** — human-readable, with sections:
 
 * **Abstract** (what this project does)
 * **Introduction** (why it exists, big picture)
-* **Details** (how to run/update, file-by-file)
-* **FAQ** (top expected questions)
+* **Details** (how to run/update, file-by-file — enriched with interview insights)
+* **FAQ** (top expected questions, mixing file-derived and interview-derived answers)
 * **Risk / gotchas** (most error-prone items)
 
-Persist:
+Persist: `onboarding_docs.md`, `knowledge_entries.json`
 
-* `onboarding_docs.md`
-* `knowledge_entries.json`
+### Track B: QA agent context (system prompt)
 
-### Retrieval index build (for the QA agent later)
+Assemble the deep dive corpus + interview summary + extracted facts into a single `.txt` file used as the QA agent's system prompt. No vector DB for MVP — the entire knowledge base fits in the LLM context window.
 
-Index:
-
-* onboarding docs
-* interview transcript + extracted facts
-* structured file records (optional)
-
-Hybrid retrieval recommended for finance:
-
-* keyword search helps for sheet names, tickers, model tabs, “BaseCase”, “Sens”, etc.
-* vector search helps for fuzzy phrasing
-
-Persist:
-
-* `retrieval_index`
+Persist: `qa_system_prompt.txt`
 
 ---
 
@@ -263,20 +250,24 @@ Persist:
 
 ### Inputs
 
-* onboarding docs + knowledge entries + retrieval index
+* onboarding package docs
+* QA system prompt text (deep dives + interview summary)
+* structured files JSON + interview summary (for on-demand knowledge graph)
 
 ### Outputs
 
-1. **Overview of previous work**
+1. **Overview narrative**
 
-   * generate a guided narrative + suggested first-week checklist
-2. **QA agent for new employee**
+   * guided reading experience + suggested first-week checklist
+2. **Knowledge graph visualization** (on-demand)
 
-   * user asks → retrieve → answer with citations to stored artifacts
-   * if low confidence → create “gap ticket”:
+   * generated via tool call from parsed files + interview summary
+   * interactive node/edge diagram showing files, concepts, people, processes
+3. **QA agent for new employee**
 
-     * what is missing
-     * where it might be found (which file / who to ask)
+   * uses deep dives + interview summary as system prompt (no vector DB)
+   * user asks → LLM answers from system prompt context
+   * if low confidence → generate gap ticket (what’s missing, where to look)
 
 ---
 
@@ -293,13 +284,14 @@ Persist:
   4. Global summarization + global questions
   5. Reconcile backlog (unified question set)
   6. Interview loop (bounded)
-  7. Summarize extracted knowledge
-  8. Build onboarding docs + retrieval index
+  7. Generate onboarding package (LLM remix of deep dives + interview facts)
+  8. Build QA agent context (assemble system prompt txt)
 
 ### Onboarding Graph
 
 1. Generate overview narrative
-2. Serve QA loop (RAG + gap tickets)
+2. Serve QA loop (system-prompt based, no vector DB)
+3. Serve knowledge graph visualization (on-demand tool call, not pre-built)
 
 ---
 

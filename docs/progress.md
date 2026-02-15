@@ -1,6 +1,6 @@
 # Project Progress — What's Done & What's TODO
 
-*Last updated: Feb 14, 2026*
+*Last updated: Feb 15, 2026*
 
 ---
 
@@ -14,7 +14,7 @@
 | Services (LLM, storage, embeddings) | **Done** | Fully implemented wrappers |
 | Graph skeletons | **Done** | Offboarding + onboarding graphs wired with all edges |
 | FastAPI app + routes | **Done** | All endpoints exist with stub responses |
-| Pipeline nodes | **Partial** | 3 of 8 implemented, 5 need LLM calls |
+| Pipeline nodes | **Partial** | 4 of 8 implemented (reconcile_questions done), 4 need LLM calls |
 | Route wiring to graphs | **TODO** | Routes don't execute graphs yet |
 | Frontend ↔ backend integration | **TODO** | Frontend still uses mock data |
 | Tests | **Partial** | 6 framework smoke tests pass, need node-level tests |
@@ -45,7 +45,7 @@
 |------|-------------|
 | `llm.py` | `call_llm(system, user)` and `call_llm_json(system, user)` — async OpenAI wrappers with retry-friendly JSON extraction |
 | `storage.py` | `SessionStorage` class — JSON/text save/load, file uploads, session creation |
-| `embeddings.py` | `RetrievalService` — ChromaDB indexing, hybrid search (vector + keyword filter) |
+**Note:** `embeddings.py` (ChromaDB) exists but is **not used for MVP**. The QA agent uses deep dives + interview summary as a system prompt instead of vector retrieval.
 
 ### File Parsers (`backend/parsers/`)
 
@@ -68,8 +68,8 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 
 | File | What it does |
 |------|-------------|
-| `offboarding_graph.py` | Full pipeline: `START → parse → fan-out deep dives → collect → concat → global → reconcile → interview → package → index → END` |
-| `onboarding_graph.py` | `START → generate_narrative → qa_loop (with interrupt)` |
+| `offboarding_graph.py` | Full pipeline: `START → parse → fan-out deep dives → collect → concat → global → reconcile → interview → [package + qa_context] → END` |
+| `onboarding_graph.py` | `START → generate_narrative → qa_loop (system-prompt based, with interrupt)` |
 | `subgraphs/file_deep_dive.py` | Per-file loop: `START → run_pass → continue/done → END` |
 
 ### Implemented Nodes
@@ -78,7 +78,7 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 |------|--------|-------|
 | `nodes/parse_files.py` | **Done** | Uses existing parsers, handles errors gracefully, persists results |
 | `nodes/concatenate.py` | **Done** | Merges reports, initializes question backlog, formats corpus text |
-| `nodes/build_index.py` | **Done** | Chunking logic + ChromaDB indexing (needs finer chunking strategy) |
+| `nodes/reconcile_questions.py` | **Done** | LLM-assisted dedup, auto-resolve, reprioritize, cap enforcement with fallback |
 
 ### Routes (all endpoints exist)
 
@@ -94,6 +94,7 @@ All 10 parsers are fully implemented with a decorator-based auto-registration sy
 | File | Tests | Status |
 |------|-------|--------|
 | `tests/test_framework.py` | 6 smoke tests | **All passing** |
+| `tests/test_reconcile_questions.py` | 16 unit tests | **All passing** |
 | `test_parsers.py` | Parser integration tests | **Existing** |
 
 ---
@@ -123,15 +124,9 @@ These nodes have the correct signatures, state I/O, and persistence — they jus
   - [ ] Append new questions to `question_backlog`
 - **Reference:** `docs/implementation_design.md` §4.4
 
-#### `nodes/reconcile_questions.py` — Question Dedup & Prioritization
+#### ~~`nodes/reconcile_questions.py`~~ — DONE
 
-- **What exists:** Node signature, caps list at 15. No actual reconciliation.
-- **What's needed:**
-  - [ ] LLM call: deduplicate semantically similar questions
-  - [ ] LLM call: auto-resolve questions answered by the corpus/summary
-  - [ ] LLM call: reprioritize (P0/P1/P2) based on knowledge-loss risk
-  - [ ] Cap at `MAX_OPEN_QUESTIONS`
-- **Reference:** `docs/implementation_design.md` §4.5
+Fully implemented with LLM-assisted dedup, auto-resolve, reprioritization, and cap enforcement. 16 unit tests passing.
 
 #### `nodes/interview.py` — Interactive Interview Loop
 
@@ -143,13 +138,23 @@ These nodes have the correct signatures, state I/O, and persistence — they jus
   - [ ] LLM call: generate follow-up if answer is vague (max 1 per question)
 - **Reference:** `docs/implementation_design.md` §4.6
 
-#### `nodes/generate_package.py` — Onboarding Package
+#### `nodes/generate_package.py` — Onboarding Package (LLM Remix)
 
 - **What exists:** Node signature, markdown formatter, persistence. Returns placeholder package.
 - **What's needed:**
   - [ ] LLM call: build structured knowledge entries from extracted facts
-  - [ ] LLM call: generate full onboarding document (abstract, intro, details, FAQ, risks)
+  - [ ] LLM call: generate onboarding doc as **remix** of deep_dive_corpus + extracted_facts (not just a summary — synthesize both sources with interview insights enriching the file analysis)
 - **Reference:** `docs/implementation_design.md` §4.7
+
+
+#### `nodes/build_qa_context.py` — QA Agent System Prompt (NEW)
+
+- **What exists:** Not yet created.
+- **What's needed:**
+  - [ ] Create the node file
+  - [ ] Pure code (no LLM): combine deep_dive_corpus + interview_summary + extracted_facts into a structured `.txt` file
+  - [ ] Persist as `qa_system_prompt.txt`
+- **Reference:** `docs/implementation_design.md` §4.9
 
 ---
 
@@ -172,9 +177,10 @@ The routes currently save data and return stubs. They need to actually execute t
 
 #### `routes/onboarding.py`
 
-- [ ] Wire `POST /ask` to use `RetrievalService.search()` + LLM to answer questions
+- [ ] Wire `POST /ask` to use `qa_system_prompt.txt` as LLM system prompt (no vector retrieval)
 - [ ] Implement gap ticket generation when confidence is low
 - [ ] Wire `GET /narrative` to read from the onboarding graph output or trigger generation
+- [ ] Add `GET /knowledge-graph` endpoint — on-demand generation via tool call (not pre-built in offboarding)
 
 ---
 
@@ -188,9 +194,10 @@ The routes currently save data and return stubs. They need to actually execute t
 
 #### `graphs/onboarding_graph.py` — `qa_loop`
 
-- [ ] Hybrid retrieval (vector + keyword) using `RetrievalService`
-- [ ] LLM call: answer grounded in retrieved chunks with citations
+- [ ] Load `qa_system_prompt.txt` as the LLM system prompt
+- [ ] LLM call: answer user questions grounded in deep dives + interview knowledge
 - [ ] Gap detection: generate gap tickets for low-confidence answers
+- [ ] **No vector retrieval** — entire knowledge base is in the system prompt
 
 ---
 
@@ -203,6 +210,7 @@ The frontend pages exist but use mock data. They need to be wired to the real ba
 - [ ] **Interview page** (`src/app/manager-interview/page.tsx`): send answers via `POST /api/interview/{id}/respond`
 - [ ] **Handoff page** (`src/app/handoff/page.tsx`): display package from `GET /api/session/{id}/artifacts`
 - [ ] **Onboarding page** (new): QA chat hitting `POST /api/onboarding/{id}/ask`
+- [ ] **Onboarding page**: knowledge graph visualization (on-demand via `GET /api/onboarding/{id}/knowledge-graph`)
 
 ---
 
@@ -210,7 +218,7 @@ The frontend pages exist but use mock data. They need to be wired to the real ba
 
 - [ ] Node-level unit tests for each implemented node
 - [ ] Integration test: full offboarding pipeline end-to-end with mock LLM
-- [ ] Better chunking strategy in `build_index.py` (respect section boundaries)
+- [ ] Knowledge graph visualization library selection (e.g., react-force-graph, d3)
 - [ ] Error handling in routes (session not found, graph failures)
 - [ ] Rate limiting / retry logic in `services/llm.py`
 - [ ] Proper logging format and log levels across all modules
@@ -224,10 +232,12 @@ Each priority can be worked on by different people in parallel since they're dec
 | Track | Person | Files | Depends on |
 |-------|--------|-------|------------|
 | **A: Deep Dive node** | — | `nodes/deep_dive.py` | Models, LLM service |
-| **B: Global + Reconcile nodes** | — | `nodes/global_summarize.py`, `nodes/reconcile_questions.py` | Models, LLM service |
+| **B: Global + Reconcile nodes** | — | `nodes/global_summarize.py` | Models, LLM service |
+| ~~**B2: Reconcile**~~ | — | ~~`nodes/reconcile_questions.py`~~ | **DONE** |
 | **C: Interview node** | — | `nodes/interview.py` | Models, LLM service |
 | **D: Package generation node** | — | `nodes/generate_package.py` | Models, LLM service |
+| **D2: QA context node** | — | `nodes/build_qa_context.py` (NEW) | Models, storage |
 | **E: Route wiring** | — | `routes/offboarding.py`, `routes/interview.py`, `routes/onboarding.py` | Graph skeletons, nodes |
-| **F: Frontend** | — | `src/app/` pages | Routes |
+| **F: Frontend** | — | `src/app/` pages + knowledge graph visualization (on-demand) | Routes |
 
-Tracks A–D are fully independent of each other. Track E depends on at least some nodes being implemented. Track F depends on routes working.
+Tracks A–D3 are fully independent of each other. Track E depends on at least some nodes being implemented. Track F depends on routes working.

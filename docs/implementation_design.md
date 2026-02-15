@@ -39,6 +39,11 @@ The system has **two runtime phases** that are temporally decoupled:
 
 Each phase is a **LangGraph StateGraph** running inside a **FastAPI** backend. The Next.js frontend drives the UX, calling the backend via REST + SSE (server-sent events) for streaming progress.
 
+**Key outputs of the offboarding phase:**
+- **Onboarding package** — LLM-processed remix of deep dive corpus + interview-extracted facts
+- **QA agent knowledge base** — deep dives + interview summary persisted as `.txt`, used as the QA agent's system prompt (no vector DB for MVP)
+- **Knowledge graph** — generated on-demand during onboarding (not part of offboarding pipeline) from parsed file structures + interview summary, used for visualization
+
 ### visual representation
 ```mermaid
 flowchart TD
@@ -65,13 +70,17 @@ flowchart TD
   M --> I[AI interview]
   I --> J[Interview summary including extracted knowledge]
 
-  %% Enrich onboarding package
+  %% New connections from interview summary
   J --> K
+  J --> O[QA agent]
+  D --> O
 
   %% Final outputs
-  K --> L[Overview of previous work]
   K --> N[QA agent for new employee]
 
+  %% Knowledge graph (onboarding side, on-demand)
+  B -.->|on-demand| P[Knowledge graph]
+  J -.->|on-demand| P
 
   %% ===== Styling =====
 
@@ -93,7 +102,7 @@ flowchart TD
 
   %% Onboarding outputs (green)
   classDef onboarding fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20;
-  class K,L,N onboarding;
+  class K,L,N,O,P onboarding;
 ```
 
 ---
@@ -106,11 +115,11 @@ flowchart TD
 | Backend API | FastAPI | REST endpoints, SSE streaming |
 | LLM | OpenAI | All reasoning, summarization, question generation |
 | File parsing | openpyxl, python-pptx, nbformat, sqlglot, pymupdf4llm, python-docx | Normalize files → structured JSON |
-| Embeddings | OpenAI `text-embedding-3-small` | Vector index for hybrid retrieval |
-| Vector store | ChromaDB (local, zero-config) | Embeddings storage + similarity search |
-| Key-value store | Local JSON files (MVP) | Parsed files, reports, question backlog |
+| Persistence | Local JSON + txt files (MVP) | Parsed files, reports, question backlog, knowledge base |
 | Frontend | Next.js 14 + React + Tailwind | UI for interview, onboarding, QA |
 | Package mgmt | uv (Python), npm (Node) | Dependency management |
+
+**MVP simplification:** No database or vector store for now. Deep dive reports and interview summaries are persisted as `.txt` files. The QA agent uses these directly as its system prompt context rather than RAG retrieval.
 
 ---
 
@@ -206,6 +215,8 @@ class OnboardingPackage:
     knowledge_entries: list[dict]
 ```
 
+**Note:** The onboarding package content is an **LLM-processed remix** of `deep_dive_corpus` + `extracted_facts`. It is NOT a simple concatenation — the LLM synthesizes both sources into a coherent narrative.
+
 ### 3.3 Storage Layout (MVP — local filesystem)
 
 ```
@@ -223,15 +234,17 @@ data/sessions/{session_id}/
 │   ├── {file_id}_pass3.json
 │   └── ...
 ├── deep_dive_corpus.json         # Concatenated summaries
+├── deep_dive_corpus.txt          # Plain text version (QA agent system prompt)
 ├── global_summary.json           # Step 3 output
 ├── question_backlog.json         # Unified question set
 ├── interview/
 │   ├── transcript.json           # Full transcript
-│   └── extracted_facts.json      # All facts extracted
+│   ├── extracted_facts.json      # All facts extracted
+│   └── interview_summary.txt     # Plain text summary (QA agent system prompt)
 ├── onboarding_package/
 │   ├── package.json              # OnboardingPackage
 │   └── onboarding_docs.md        # Human-readable doc
-└── vector_index/                 # ChromaDB collection data
+└── qa_system_prompt.txt          # Combined deep dives + interview (QA agent context)
 ```
 
 ---
@@ -255,8 +268,10 @@ class OffboardingState(TypedDict):
     question_backlog: list[Question]
     interview_transcript: list[InterviewTurn]
     extracted_facts: list[str]
+    interview_summary: str              # plain text summary of interview
     onboarding_package: OnboardingPackage | None
-    status: str                    # "parsing" | "analyzing" | ...
+    qa_system_prompt: str               # combined deep dives + interview for QA agent
+    status: str                         # "parsing" | "analyzing" | ...
     current_step: str
     errors: list[str]
 ```
@@ -552,11 +567,13 @@ Extract:
 
 ---
 
-### 4.7 Step 5 — Generate Onboarding Package
+### 4.7 Step 5 — Generate Onboarding Package (remix of deep dives + interview)
 
 **Node:** `generate_onboarding_package`
 
-**Input:** All prior artifacts — `deep_dive_corpus`, `global_summary`, `question_backlog` (with answers), `extracted_facts`.
+**Input:** `deep_dive_corpus` + `extracted_facts` + `global_summary` + `question_backlog` (with answers).
+
+**Key concept:** The onboarding package is an **LLM-processed remix** — not a simple concatenation. The LLM synthesizes the file-level analysis (deep dives) with the tacit knowledge captured during the interview (extracted facts) into a coherent, actionable document.
 
 **Sub-steps:**
 
@@ -576,27 +593,36 @@ create structured knowledge entries. Each entry should be one of:
 {answered_questions_with_context}
 ```
 
-#### 5b. Generate onboarding document
+#### 5b. Generate onboarding document (remix)
 
 Prompt:
 ```
 You are writing an onboarding document for a new team member
-who will take over this project. Use the following materials:
+who will take over this project.
 
+You have TWO sources of knowledge to remix together:
+
+SOURCE 1 — Deep dive analysis (what we learned from the files):
+{deep_dive_corpus}
+
+SOURCE 2 — Interview knowledge (what the departing employee told us):
+{extracted_facts}
+{answered_questions_with_context}
+
+Additional context:
 - Global summary: {global_summary}
-- Per-file summaries: {file_summaries}
 - Knowledge entries: {knowledge_entries}
-- FAQ from interview: {faq_from_questions}
 
-Write these sections:
+Synthesize both sources into a clear onboarding document with:
 1. Abstract (2-3 sentences: what this project does)
 2. Introduction (why it exists, business context, key stakeholders)
-3. Details (file-by-file guide: what each file does, how to use it)
-4. FAQ (top 5-8 questions a new person would ask, with answers)
+3. Details (file-by-file guide: what each file does, how to use it,
+   ENRICHED with interview insights about each file)
+4. FAQ (top 5-8 questions, mixing file-derived and interview-derived answers)
 5. Risks & Gotchas (most error-prone items, manual steps, known issues)
 
-Keep it practical and clear. A new hire should be able to read this
-and start working within a day.
+Where the interview provided insight that the files alone couldn't,
+highlight this explicitly (e.g., "Per the previous owner: ...").
 ```
 
 **Output → state:** `onboarding_package` populated.
@@ -605,23 +631,40 @@ and start working within a day.
 
 ---
 
-### 4.8 Step 6 — Build Retrieval Index
+### 4.8 Step 6 — Build QA Agent Context
 
-**Node:** `build_retrieval_index`
+**Node:** `build_qa_context`
 
-**Logic:**
+**Input:** `deep_dive_corpus` + `interview_summary` + `extracted_facts`.
 
-1. Chunk the following into retrieval-sized segments (~500 tokens each):
-   - Onboarding document sections
-   - Each knowledge entry
-   - Each answered question + its answer
-   - Each deep dive report summary
-   - Interview transcript (per-turn)
-2. Embed each chunk using the embedding model.
-3. Store in ChromaDB with metadata: `source_type`, `file_id`, `section`.
-4. Also store raw text alongside embeddings for keyword search (ChromaDB supports this natively via `where_document`).
+**Purpose:** Assemble the plain-text knowledge base that will be used as the QA agent's system prompt. No vector DB — just a well-structured text file.
 
-**Output:** ChromaDB collection stored under `vector_index/`.
+**Logic (pure code, no LLM):**
+
+1. Combine `deep_dive_corpus` (what we learned from files) + `interview_summary` (what the employee told us) + `extracted_facts` (structured facts).
+2. Format as a single `.txt` file with clear section headers.
+3. Persist as `qa_system_prompt.txt`.
+
+**Output → state:** `qa_system_prompt` string.
+
+**Output format:**
+```
+=== PROJECT KNOWLEDGE BASE ===
+
+== FILE ANALYSIS (Deep Dives) ==
+{deep_dive_corpus}
+
+== INTERVIEW SUMMARY ==
+{interview_summary}
+
+== EXTRACTED FACTS ==
+{extracted_facts, one per line}
+
+== ANSWERED QUESTIONS ==
+{questions with status answered_by_interview, with their answers}
+```
+
+**Persistence:** Save `qa_system_prompt.txt` (also `deep_dive_corpus.txt` and `interview/interview_summary.txt` as individual files).
 
 ---
 
@@ -640,7 +683,7 @@ builder.add_node("global_summarize", global_summarize)
 builder.add_node("reconcile_questions", reconcile_questions)
 builder.add_node("interview_loop", interview_loop)
 builder.add_node("generate_onboarding_package", generate_package)
-builder.add_node("build_retrieval_index", build_index)
+builder.add_node("build_qa_context", build_qa_context)
 
 # Add edges
 builder.add_edge(START, "parse_files")
@@ -653,18 +696,26 @@ builder.add_edge("file_deep_dive", "concatenate_deep_dives")
 builder.add_edge("concatenate_deep_dives", "global_summarize")
 builder.add_edge("global_summarize", "reconcile_questions")
 builder.add_edge("reconcile_questions", "interview_loop")
+# After interview: package + QA context can run in parallel
 builder.add_edge("interview_loop", "generate_onboarding_package")
-builder.add_edge("generate_onboarding_package", "build_retrieval_index")
-builder.add_edge("build_retrieval_index", END)
+builder.add_edge("interview_loop", "build_qa_context")
+builder.add_edge("generate_onboarding_package", END)
+builder.add_edge("build_qa_context", END)
 
 offboarding_graph = builder.compile()
 ```
+
+**Post-interview fan-out:** After the interview completes, two nodes run in parallel:
+1. `generate_onboarding_package` — remix deep dives + interview facts
+2. `build_qa_context` — assemble the QA agent's system prompt text
+
+**Note:** The knowledge graph is NOT part of the offboarding pipeline. It is generated on-demand during onboarding via a tool call (see §5.4).
 
 ---
 
 ## 5) Onboarding Graph — Detailed Design
 
-The onboarding graph runs when a new hire arrives. It reads from the knowledge store and provides two capabilities.
+The onboarding graph runs when a new hire arrives. It reads from the knowledge store produced by the offboarding graph and provides two capabilities: a narrative overview and an interactive QA agent.
 
 ### 5.1 Graph State
 
@@ -672,9 +723,11 @@ The onboarding graph runs when a new hire arrives. It reads from the knowledge s
 class OnboardingState(TypedDict):
     session_id: str
     onboarding_package: OnboardingPackage
-    retrieval_index: str          # ChromaDB collection name
+    qa_system_prompt: str         # deep dives + interview summary (txt)
+    knowledge_graph: dict | None  # populated on-demand via tool call (not pre-built)
     chat_history: list[dict]      # [{"role": ..., "content": ...}]
     current_mode: str             # "narrative" | "qa"
+    narrative: str                # generated narrative markdown
 ```
 
 ### 5.2 Node: Generate Overview Narrative
@@ -693,35 +746,95 @@ Takes the `onboarding_package` and produces a guided reading experience:
 
 This is a one-shot generation (not a loop).
 
-### 5.3 Node: QA Agent Loop
+### 5.3 Node: QA Agent (system-prompt based)
 
 **Node:** `qa_loop`
 
-This is the interactive Q&A where the new hire asks questions.
+The QA agent answers new-hire questions using the **deep dives + interview summary as its system prompt**. No vector retrieval or database — the entire knowledge base fits in the LLM's context window.
+
+**How it works:**
+
+1. Load `qa_system_prompt.txt` — this contains the full deep dive corpus + interview summary + extracted facts.
+2. Set it as the system prompt for the LLM.
+3. For each user question, call the LLM with the system prompt + conversation history.
+
+**System prompt structure:**
+```
+You are a knowledgeable assistant helping a new team member
+understand a project they are taking over. You have access
+to the following knowledge base from the previous owner's
+files and exit interview.
+
+{qa_system_prompt_txt_content}
+
+Rules:
+- Answer questions based ONLY on the knowledge base above.
+- Cite which file or interview answer your information comes from.
+- If you are not confident, say so and suggest what to investigate.
+- Be concise and practical.
+```
 
 **Per-question flow:**
 
-1. **Retrieve:** Hybrid search on the new hire's question.
-   - Vector similarity (top 5 chunks).
-   - Keyword filter (for exact terms like sheet names, tickers, model names).
-   - Re-rank results by relevance.
-2. **Answer:** LLM generates an answer grounded in retrieved chunks.
-   - Include **citations**: `[Source: onboarding_docs > Details > model.xlsx]`.
-   - Include a **confidence score** (high / medium / low).
-3. **Gap detection:** If confidence is low (retrieval score below threshold or LLM says "I'm not sure"):
-   - Generate a **gap ticket**:
-     ```json
-     {
-       "gap_description": "How the sensitivity range was chosen",
-       "likely_sources": ["model.xlsx > Sensitivity tab", "Ask: John (prev owner)"],
-       "priority": "P1"
-     }
-     ```
-   - Present the gap ticket to the new hire as: "I don't have a confident answer. Here's what I'd suggest investigating."
+1. Receive user question.
+2. Send to LLM with system prompt (full knowledge base) + conversation history.
+3. LLM answers grounded in the deep dives and interview knowledge.
+4. If the LLM indicates low confidence, generate a **gap ticket**:
+   ```json
+   {
+     "gap_description": "How the sensitivity range was chosen",
+     "likely_sources": ["model.xlsx > Sensitivity tab", "Ask: John (prev owner)"],
+     "priority": "P1"
+   }
+   ```
 
-**Termination:** The QA loop runs indefinitely (new hire ends it when done). Each turn is independent — no complex loop termination logic needed.
+**Termination:** The QA loop runs indefinitely (new hire ends it when done). Each turn is independent.
 
-### 5.4 Complete Onboarding Graph Definition
+### 5.4 Knowledge Graph (on-demand tool call)
+
+The knowledge graph is **not** pre-generated during offboarding. Instead, it is generated **on-demand** during onboarding when the new hire (or the frontend) requests it.
+
+**Implementation:** An LLM tool call or a dedicated API endpoint that:
+
+1. Reads `structured_files` (parsed JSON) + `interview_summary` from the session store.
+2. Calls the LLM to generate a graph JSON with nodes and edges.
+3. Caches the result as `knowledge_graph/graph.json` for subsequent requests.
+
+**Prompt:**
+```
+Given the following parsed project files and interview summary,
+generate a knowledge graph as JSON.
+
+Parsed files:
+{structured_files_summary}
+
+Interview summary:
+{interview_summary}
+
+Return a JSON object with:
+{
+  "nodes": [
+    {"id": "...", "label": "...", "type": "file|concept|person|process|data_source"}
+  ],
+  "edges": [
+    {"source": "...", "target": "...", "label": "..."}
+  ]
+}
+
+Node types:
+- file: a project file (xlsx, py, pptx, etc.)
+- concept: a business concept or model (e.g., "loss threshold", "Q3 forecast")
+- person: a stakeholder or team member mentioned
+- process: a workflow or recurring task (e.g., "monthly reconciliation")
+- data_source: an external data dependency
+
+Edges should capture: "uses", "produces", "depends_on", "owned_by",
+"feeds_into", "overrides", "validates", etc.
+```
+
+**API:** `GET /api/onboarding/{session_id}/knowledge-graph` — generates on first call, returns cached on subsequent calls.
+
+### 5.5 Complete Onboarding Graph Definition
 
 ```python
 builder = StateGraph(OnboardingState)
@@ -732,6 +845,7 @@ builder.add_node("qa_loop", qa_loop)
 builder.add_edge(START, "generate_narrative")
 builder.add_edge("generate_narrative", "qa_loop")
 # qa_loop uses interrupt() for human-in-the-loop
+# knowledge graph is NOT a graph node — it's an on-demand API/tool call
 
 onboarding_graph = builder.compile()
 ```
@@ -773,10 +887,14 @@ GET    /api/onboarding/{session_id}/narrative
 POST   /api/onboarding/{session_id}/ask
        Body: { question: str }
        Returns: { answer, citations, confidence, gap_ticket? }
-       Action: Runs QA retrieval + generation.
+       Action: QA agent answers using system-prompt context (no vector retrieval).
+
+GET    /api/onboarding/{session_id}/knowledge-graph
+       Returns: { nodes: [...], edges: [...] }
+       Action: Returns the knowledge graph for frontend visualization.
 
 GET    /api/session/{session_id}/artifacts
-       Returns: { files, deep_dives, questions, package }
+       Returns: { files, deep_dives, questions, package, knowledge_graph }
        Action: Returns all generated artifacts for inspection.
 ```
 
@@ -821,6 +939,7 @@ The frontend subscribes to `/api/offboarding/{session_id}/stream` for real-time 
 
 /onboarding (new hire view)
   → Display narrative (abstract → intro → details → checklist)
+  → Knowledge graph visualization (interactive node/edge diagram)
   → QA chat panel: POST /api/onboarding/{session_id}/ask
   → Show citations inline, gap tickets when confidence is low
 ```
@@ -899,15 +1018,14 @@ golden_gate/
 │   │   ├── reconcile_questions.py
 │   │   ├── interview.py
 │   │   ├── generate_package.py
-│   │   └── build_index.py
+│   │   └── build_qa_context.py       # deep dives + interview → system prompt txt
 │   ├── models/                       # Data classes
 │   │   ├── __init__.py
 │   │   ├── state.py                  # OffboardingState, OnboardingState
 │   │   ├── artifacts.py              # StructuredFile, DeepDiveReport, etc.
 │   │   └── questions.py              # Question, Evidence
 │   ├── services/                     # Shared services
-│   │   ├── llm.py                    # Claude API wrapper
-│   │   ├── embeddings.py             # Embedding + ChromaDB ops
+│   │   ├── llm.py                    # OpenAI API wrapper
 │   │   └── storage.py                # File I/O helpers
 │   ├── routes/                       # FastAPI routers
 │   │   ├── offboarding.py
@@ -953,7 +1071,9 @@ golden_gate/
 | Global summarize | 1 | No | ~8k in + 3k out |
 | Reconcile questions | 1 | No | ~4k in + 2k out |
 | Interview (per turn) | 2 (select Q + extract facts) | No | ~2k in + 1k out per turn |
-| Generate package | 2 (entries + doc) | Partially | ~6k in + 4k out |
-| Build index | 0 (embedding calls only) | Yes (batch embed) | N/A |
+| Generate package | 2 (entries + remix doc) | Partially | ~8k in + 4k out |
+| Build QA context | 0 | Yes (parallel with package) | 0 (text assembly) |
+| Knowledge graph (on-demand) | 1 | N/A (onboarding side) | ~6k in + 2k out |
+| QA agent (per question) | 1 | No | ~system prompt size + 1k out |
 
-**Estimated total for 6 files, 8 interview rounds:** ~120k input tokens, ~50k output tokens.
+**Estimated total for 6 files, 8 interview rounds:** ~120k input tokens, ~50k output tokens (excluding QA agent usage).
