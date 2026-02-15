@@ -53,3 +53,14 @@ chroma_data/
 # env
 .env
 
+
+
+# __pycache__
+__pycache__/
+data_delivery/*.txt
+kg*.json
+kg*.txt
+
+# mock data for kg
+src/data/interviewTranscript.md
+src/data/short_interview.md
